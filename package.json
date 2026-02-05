@@ -1,0 +1,13 @@
+{
+  "name": "daehanpns",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "api:dev": "npm run dev --workspace=@daehanpns/api"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0"
+  }
+}

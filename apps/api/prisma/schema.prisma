@@ -1,0 +1,488 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AuthProvider {
+  LOCAL
+  GOOGLE
+  KAKAO
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum AdminTier {
+  INTEGRATED // 통합관리자
+  CEO        // 대표관리자
+  MIDDLE     // 중간관리자
+  GENERAL    // 일반관리자
+}
+
+enum ChatType {
+  ONE_TO_N    // 1:N (방장 → 회원들)
+  ONE_TO_ONE  // 1:1 (회원 ↔ 회원)
+}
+
+enum OwnerType {
+  OWNER       // 방장
+  VICE_OWNER  // 부방장
+  MEMBER      // 일반 참여자
+}
+
+enum NotificationType {
+  SYSTEM
+  CHAT
+  COMMUNITY
+  SUBSCRIPTION
+}
+
+enum NotifCategory {
+  CHAT_MESSAGE
+  CHAT_ROOM_INVITE
+  CHAT_ROOM_KICK
+  COMMUNITY_COMMENT
+  COMMUNITY_LIKE
+  SUBSCRIPTION_APPROVED
+  SUBSCRIPTION_REJECTED
+  SUBSCRIPTION_EXPIRED
+  SYSTEM_NOTICE
+  SYSTEM_EVENT
+}
+
+enum CommunityCategory {
+  NOTICE
+  FREE
+  QNA
+  REVIEW
+}
+
+enum ReportStatus {
+  PENDING
+  PROCESSING
+  RESOLVED
+  REJECTED
+}
+
+enum BannerPos {
+  HOME_TOP
+  HOME_MIDDLE
+  HOME_BOTTOM
+  CHAT_TOP
+  COMMUNITY_TOP
+}
+
+enum DismissType {
+  TODAY
+  WEEK
+  FOREVER
+}
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum Platform {
+  WEB
+  IOS
+  ANDROID
+}
+
+model User {
+  id            String        @id @default(uuid())
+  email         String?       @unique
+  phone         String        @unique
+  password      String?
+  name          String
+  nickname      String?
+  gender        Gender?
+  birthDate     DateTime?
+  profileImage  String?
+  provider      AuthProvider  @default(LOCAL)
+  providerId    String?
+  affiliateCode String        // 소속코드 (필수)
+  isActive      Boolean       @default(true)
+  fcmToken      String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
+
+  memos                MemberMemo[]
+  chatParticipants     ChatParticipant[]
+  sentMessages         ChatMessage[]
+  communities          Community[]
+  communityComments    CommunityComment[]
+  communityLikes       CommunityLike[]
+  reports              Report[]
+  notifications        Notification[]
+  notificationSettings NotificationSetting[]
+  popupDismissals      PopupDismissal[]
+  subscriptions        Subscription[]
+
+  @@index([email])
+  @@index([phone])
+  @@index([affiliateCode])
+  @@index([createdAt])
+}
+
+model Admin {
+  id               String          @id @default(uuid())
+  loginId          String          @unique
+  password         String
+  name             String
+  email            String?
+  phone            String?
+  tier             AdminTier       @default(GENERAL)
+  isActive         Boolean         @default(true)
+  lastLoginAt      DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  deletedAt        DateTime?
+
+  permissions      AdminPermission[]
+  logs             AdminLog[]
+
+  @@index([loginId])
+  @@index([tier])
+}
+
+model AdminPermission {
+  id         String   @id @default(uuid())
+  adminId    String
+  permission String   // PERMISSIONS key from constants.ts
+  createdAt  DateTime @default(now())
+
+  admin      Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@unique([adminId, permission])
+  @@index([adminId])
+}
+
+model AdminLog {
+  id          String   @id @default(uuid())
+  adminId     String
+  action      String   // LOGIN, LOGOUT, CREATE_USER, DELETE_USER, etc.
+  target      String?  // 대상 리소스 (userId, chatRoomId, etc.)
+  description String?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  admin       Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([createdAt])
+}
+
+model MemberMemo {
+  id        String   @id @default(uuid())
+  userId    String
+  adminId   String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model ChatRoom {
+  id          String   @id @default(uuid())
+  type        ChatType
+  name        String?  // 1:N 방 이름 (1:1은 null)
+  description String?
+  image       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  participants     ChatParticipant[]
+  messages         ChatMessage[]
+  pinnedMessages   ChatPinnedMessage[]
+
+  @@index([type])
+  @@index([createdAt])
+}
+
+model ChatParticipant {
+  id           String     @id @default(uuid())
+  roomId       String
+  userId       String
+  ownerType    OwnerType  @default(MEMBER)
+  isViceOwner  Boolean    @default(false) // 부방장 여부
+  joinedAt     DateTime   @default(now())
+  lastReadAt   DateTime?
+  leftAt       DateTime?
+
+  room         ChatRoom   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([roomId])
+  @@index([userId])
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid())
+  roomId    String
+  senderId  String
+  content   String
+  fileUrl   String?
+  fileName  String?
+  fileSize  Int?
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  room      ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender    User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
+  @@index([senderId])
+  @@index([createdAt])
+}
+
+model ChatPinnedMessage {
+  id        String   @id @default(uuid())
+  roomId    String
+  messageId String   // ChatMessage ID reference (not FK to allow flexibility)
+  content   String   // 메시지 내용 복사본
+  pinnedBy  String   // Admin or User ID
+  pinnedAt  DateTime @default(now())
+
+  room      ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
+}
+
+model BlockedKeyword {
+  id        String   @id @default(uuid())
+  keyword   String   @unique
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id        String             @id @default(uuid())
+  userId    String
+  type      NotificationType
+  category  NotifCategory
+  title     String
+  body      String
+  data      Json?              // 추가 데이터 (채팅방 ID, 커뮤니티 ID 등)
+  isRead    Boolean            @default(false)
+  createdAt DateTime           @default(now())
+
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+model NotificationSetting {
+  id        String             @id @default(uuid())
+  userId    String
+  category  NotifCategory
+  isEnabled Boolean            @default(true)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, category])
+  @@index([userId])
+}
+
+model Community {
+  id        String            @id @default(uuid())
+  category  CommunityCategory
+  title     String
+  content   String
+  images    String[]          // 이미지 URL 배열
+  authorId  String
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  author    User              @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments  CommunityComment[]
+  likes     CommunityLike[]
+
+  @@index([category])
+  @@index([authorId])
+  @@index([createdAt])
+}
+
+model CommunityComment {
+  id          String    @id @default(uuid())
+  communityId String
+  authorId    String
+  content     String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([communityId])
+  @@index([authorId])
+  @@index([createdAt])
+}
+
+model CommunityLike {
+  id          String    @id @default(uuid())
+  communityId String
+  userId      String
+  createdAt   DateTime  @default(now())
+
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([communityId, userId])
+  @@index([communityId])
+  @@index([userId])
+}
+
+model Faq {
+  id        String   @id @default(uuid())
+  question  String
+  answer    String
+  order     Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([order])
+}
+
+model Report {
+  id          String       @id @default(uuid())
+  reporterId  String
+  targetType  String       // USER, CHAT_MESSAGE, COMMUNITY, COMMUNITY_COMMENT
+  targetId    String       // 신고 대상 ID
+  reason      String
+  description String?
+  status      ReportStatus @default(PENDING)
+  adminNote   String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  reporter    User         @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@index([reporterId])
+  @@index([targetType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Banner {
+  id        String    @id @default(uuid())
+  position  BannerPos
+  title     String?
+  imageUrl  String
+  linkUrl   String?
+  order     Int       @default(0)
+  isActive  Boolean   @default(true)
+  startDate DateTime?
+  endDate   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([position])
+  @@index([order])
+  @@index([isActive])
+}
+
+model Popup {
+  id        String   @id @default(uuid())
+  title     String
+  content   String
+  imageUrl  String?
+  linkUrl   String?
+  isActive  Boolean  @default(true)
+  startDate DateTime?
+  endDate   DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  dismissals PopupDismissal[]
+
+  @@index([isActive])
+}
+
+model PopupDismissal {
+  id         String      @id @default(uuid())
+  popupId    String
+  userId     String
+  type       DismissType
+  dismissedAt DateTime   @default(now())
+  expiresAt  DateTime?  // TODAY/WEEK인 경우 만료 시간
+
+  popup      Popup       @relation(fields: [popupId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([popupId, userId])
+  @@index([popupId])
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Subscription {
+  id         String             @id @default(uuid())
+  userId     String
+  planName   String             // 구독 플랜 이름
+  price      Int                // 가격
+  status     SubscriptionStatus @default(PENDING)
+  startDate  DateTime?
+  endDate    DateTime?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([endDate])
+}
+
+model DiscountEvent {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  discountRate Int      // 할인율 (%)
+  startDate   DateTime
+  endDate     DateTime
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([isActive])
+  @@index([startDate])
+  @@index([endDate])
+}
+
+model AppVersion {
+  id            String   @id @default(uuid())
+  platform      Platform
+  version       String
+  buildNumber   Int
+  isForceUpdate Boolean  @default(false)
+  updateMessage String?
+  downloadUrl   String?
+  createdAt     DateTime @default(now())
+
+  @@unique([platform, version])
+  @@index([platform])
+}
