@@ -10,41 +10,9 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
 
-  // 일회성 마이그레이션: 삭제된 사용자의 unique 컬럼 정리
-  try {
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
-
-    const deletedUsers = await prisma.user.findMany({
-      where: {
-        deletedAt: { not: null },
-        email: { not: null }, // 이메일이 아직 정리되지 않은 삭제 사용자
-      },
-    });
-
-    if (deletedUsers.length > 0) {
-      console.log(`🔧 Cleaning up ${deletedUsers.length} deleted users...`);
-
-      for (const user of deletedUsers) {
-        const timestamp = Date.now();
-        await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            email: null,
-            phone: `deleted_${user.id}_${timestamp}`,
-            nickname: null,
-            providerId: null,
-          },
-        });
-      }
-
-      console.log(`✅ Cleaned up ${deletedUsers.length} deleted users`);
-    }
-
-    await prisma.$disconnect();
-  } catch (error) {
-    console.error('❌ Failed to clean up deleted users:', error);
-  }
+  // TODO: 일회성 마이그레이션 - 서버 안정화 후 실행
+  // 삭제된 사용자의 unique 컬럼 정리
+  // (임시로 주석 처리 - Railway 배포 시 크래시 방지)
 
   // Cookie Parser
   app.use(cookieParser());
