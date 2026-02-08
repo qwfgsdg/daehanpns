@@ -44,9 +44,5 @@ WORKDIR /app/apps/api
 # Copy env check script
 COPY --from=builder /app/apps/api/check-env.js ./check-env.js
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=40s \
-  CMD node -e "require('http').get('http://localhost:3000/api', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
-
-# Start with environment check
-CMD ["sh", "-c", "node check-env.js && node dist/apps/api/src/main.js"]
+# Start with environment check (removed healthcheck temporarily for debugging)
+CMD ["sh", "-c", "echo '=== STARTING APPLICATION ===' && node check-env.js 2>&1 && echo '=== STARTING NESTJS ===' && node dist/apps/api/src/main.js 2>&1"]
