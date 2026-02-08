@@ -40,4 +40,4 @@ EXPOSE 3000
 
 # Start the application
 WORKDIR /app/apps/api
-CMD ["node", "dist/src/main.js"]
+CMD ["node", "dist/apps/api/src/main.js"]
