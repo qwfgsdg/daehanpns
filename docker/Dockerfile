@@ -1,7 +1,7 @@
 # Base stage
 FROM node:20-alpine AS base
 WORKDIR /app
-RUN apk add --no-cache libc6-compat openssl1.1-compat
+RUN apk add --no-cache libc6-compat openssl
 
 # Dependencies stage
 FROM base AS deps
