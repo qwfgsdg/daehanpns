@@ -11,9 +11,9 @@ import {
   Req,
 } from '@nestjs/common';
 import { ChatService } from './chat.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { PermissionGuard } from '../auth/guards/permission.guard';
-import { RequirePermission } from '../auth/decorators/require-permission.decorator';
+import { JwtAuthGuard } from '../modules/auth/guards/jwt-auth.guard';
+import { PermissionGuard } from '../modules/auth/guards/permission.guard';
+import { RequirePermission } from '../decorators/require-permission.decorator';
 import { ChatType, OwnerType } from '@prisma/client';
 
 @Controller('chat')
@@ -36,9 +36,8 @@ export class ChatController {
     @Req() req: any,
   ) {
     return this.chatService.createRoom({
-      ...data,
-      ownerId: req.user.id,
-      ownerType: req.user.type || 'user',
+      name: data.name,
+      type: data.type,
     });
   }
 
@@ -212,7 +211,7 @@ export class ChatController {
     @Body('keyword') keyword: string,
     @Req() req: any,
   ) {
-    return this.chatService.addBlockedKeyword(keyword, req.user.id);
+    return this.chatService.addBlockedKeyword(keyword);
   }
 
   /**
@@ -238,7 +237,6 @@ export class ChatController {
   ) {
     const count = await this.chatService.broadcastMessage({
       senderId: req.user.id,
-      senderType: req.user.type || 'admin',
       content: data.content,
       fileUrl: data.fileUrl,
     });

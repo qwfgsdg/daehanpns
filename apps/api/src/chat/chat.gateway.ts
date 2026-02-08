@@ -3,14 +3,14 @@ import {
   WebSocketServer,
   SubscribeMessage,
   OnGatewayConnection,
-  OnGatewayDisconnection,
+  OnGatewayDisconnect,
   ConnectedSocket,
   MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ChatService } from './chat.service';
-import { RedisService } from '../redis/redis.service';
+import { RedisService } from '../modules/redis/redis.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { OwnerType } from '@prisma/client';
 
@@ -20,7 +20,7 @@ import { OwnerType } from '@prisma/client';
     credentials: true,
   },
 })
-export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnection {
+export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
@@ -64,7 +64,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnection 
       this.onlineUsers.set(userId, sockets);
 
       // Update Redis online status
-      await this.redisService.setOnline(userId);
+      await this.redisService.set(`online:${userId}`, '1', 3600);
 
       console.log(`User ${userId} connected (socket: ${client.id})`);
 
@@ -79,7 +79,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnection 
   /**
    * Handle client disconnection
    */
-  async handleDisconnection(client: Socket) {
+  async handleDisconnect(client: Socket) {
     const userId = client.data.userId;
 
     if (userId) {
@@ -88,7 +88,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnection 
 
       if (filtered.length === 0) {
         this.onlineUsers.delete(userId);
-        await this.redisService.setOffline(userId);
+        await this.redisService.del(userId);
         this.broadcastOnlineStatus(userId, false);
       } else {
         this.onlineUsers.set(userId, filtered);
@@ -182,7 +182,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnection 
       const hasPermission = await this.chatService.canSendMessage(
         data.roomId,
         userId,
-        userType as OwnerType,
       );
 
       if (!hasPermission) {
@@ -193,10 +192,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnection 
       const message = await this.chatService.createMessage({
         roomId: data.roomId,
         senderId: userId,
-        senderType: userType as OwnerType,
         content: data.content,
         fileUrl: data.fileUrl,
-        fileType: data.fileType,
         fileName: data.fileName,
       });
 

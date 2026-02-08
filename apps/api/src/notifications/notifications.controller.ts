@@ -11,7 +11,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../modules/auth/guards/jwt-auth.guard';
 import { NotifCategory } from '@prisma/client';
 
 @Controller('notifications')

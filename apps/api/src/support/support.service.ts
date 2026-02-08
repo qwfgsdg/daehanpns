@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { LogsService } from '../logs/logs.service';
+import { PrismaService } from '../modules/prisma/prisma.service';
+import { LogsService } from '../modules/logs/logs.service';
 import { Faq, Report, ReportStatus, Prisma } from '@prisma/client';
 
 @Injectable()
@@ -24,7 +24,7 @@ export class SupportService {
       data: {
         question: data.question,
         answer: data.answer,
-        category: data.category,
+        // category: data.category,
       },
     });
   }
@@ -40,7 +40,7 @@ export class SupportService {
   }) {
     const where: Prisma.FaqWhereInput = {};
 
-    if (params.category) where.category = params.category;
+    if (params.category) // where.category = params.category;
     if (params.search) {
       where.OR = [
         { question: { contains: params.search, mode: 'insensitive' } },
@@ -87,12 +87,10 @@ export class SupportService {
     });
 
     if (actorId) {
-      await this.logsService.create({
-        actorId,
-        actionType: 'FAQ_UPDATE',
-        targetType: 'faq',
-        targetId: id,
-        details: { before, after: updated },
+      await this.logsService.createAdminLog({
+        adminId: actorId,
+        action: 'FAQ_UPDATE',
+        target: id,
       });
     }
 
@@ -108,12 +106,10 @@ export class SupportService {
     await this.prisma.faq.delete({ where: { id } });
 
     if (actorId) {
-      await this.logsService.create({
-        actorId,
-        actionType: 'FAQ_DELETE',
-        targetType: 'faq',
-        targetId: id,
-        details: { deleted: faq },
+      await this.logsService.createAdminLog({
+        adminId: actorId,
+        action: 'FAQ_DELETE',
+        target: id,
       });
     }
   }
@@ -135,7 +131,7 @@ export class SupportService {
         targetType: data.targetType,
         targetId: data.targetId,
         reason: data.reason,
-        status: 'SUBMITTED',
+        status: 'PENDING',
       },
     });
   }
@@ -159,7 +155,7 @@ export class SupportService {
     if (params.search) {
       where.OR = [
         { reason: { contains: params.search, mode: 'insensitive' } },
-        { adminMemo: { contains: params.search, mode: 'insensitive' } },
+        { adminNote: { contains: params.search, mode: 'insensitive' } },
       ];
     }
 
@@ -211,28 +207,22 @@ export class SupportService {
     id: string,
     status: ReportStatus,
     adminId: string,
-    adminMemo?: string,
+    adminNote?: string,
   ): Promise<Report> {
     const before = await this.getReportById(id);
     const updated = await this.prisma.report.update({
       where: { id },
       data: {
         status,
-        adminId,
-        adminMemo,
+        adminNote,
       },
     });
 
-    await this.logsService.create({
-      actorId: adminId,
-      actionType: 'REPORT_STATUS_UPDATE',
-      targetType: 'report',
-      targetId: id,
-      details: {
-        before: before?.status,
-        after: status,
-        adminMemo,
-      },
+    await this.logsService.createAdminLog({
+      adminId: adminId,
+      action: 'REPORT_STATUS_UPDATE',
+      target: id,
+      description: `Status changed from ${before?.status} to ${status}${adminNote ? ': ' + adminNote : ''}`,
     });
 
     return updated;
@@ -254,7 +244,7 @@ export class SupportService {
   async getUnresolvedCount(): Promise<number> {
     return this.prisma.report.count({
       where: {
-        status: { in: ['SUBMITTED', 'REVIEWING'] },
+        status: { in: ['PENDING', 'PROCESSING'] },
       },
     });
   }

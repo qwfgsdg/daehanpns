@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { AppVersionsService } from './app-versions.service';
 import { AppVersionsController } from './app-versions.controller';
-import { PrismaModule } from '../prisma/prisma.module';
-import { LogsModule } from '../logs/logs.module';
+import { PrismaModule } from '../modules/prisma/prisma.module';
+import { LogsModule } from '../modules/logs/logs.module';
 
 @Module({
   imports: [PrismaModule, LogsModule],

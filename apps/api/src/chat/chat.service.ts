@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { LogsService } from '../logs/logs.service';
-import { RedisService } from '../redis/redis.service';
+import { PrismaService } from '../modules/prisma/prisma.service';
+import { LogsService } from '../modules/logs/logs.service';
+import { RedisService } from '../modules/redis/redis.service';
 import { ChatRoom, ChatMessage, ChatType, OwnerType, Prisma } from '@prisma/client';
 import { nanoid } from 'nanoid';
 
@@ -19,22 +19,11 @@ export class ChatService {
   async createRoom(data: {
     name: string;
     type: ChatType;
-    ownerId: string;
-    ownerType: OwnerType;
-    isApprovalRequired?: boolean;
-    isBidirectional?: boolean;
   }): Promise<ChatRoom> {
-    const entryCode = data.type === 'GROUP' ? nanoid(8) : null;
-
     return this.prisma.chatRoom.create({
       data: {
         name: data.name,
         type: data.type,
-        entryCode,
-        ownerId: data.ownerId,
-        ownerType: data.ownerType,
-        isApprovalRequired: data.isApprovalRequired || false,
-        isBidirectional: data.isBidirectional !== false,
       },
     });
   }
@@ -49,19 +38,17 @@ export class ChatService {
         participants: {
           include: { user: true },
         },
-        pinnedMessages: {
-          include: { message: true },
-        },
+        pinnedMessages: true,
       },
     });
   }
 
   /**
-   * Get room by entry code
+   * Get room by entry code (not supported in current schema)
    */
   async getRoomByEntryCode(entryCode: string): Promise<ChatRoom | null> {
-    return this.prisma.chatRoom.findUnique({
-      where: { entryCode },
+    return this.prisma.chatRoom.findFirst({
+      where: { name: entryCode },
     });
   }
 
@@ -78,7 +65,6 @@ export class ChatService {
     const where: Prisma.ChatRoomWhereInput = {};
 
     if (params.type) where.type = params.type;
-    if (params.ownerId) where.ownerId = params.ownerId;
     if (params.search) {
       where.name = { contains: params.search, mode: 'insensitive' };
     }
@@ -90,7 +76,7 @@ export class ChatService {
         take: params.take || 20,
         orderBy: { createdAt: 'desc' },
         include: {
-          participants: { where: { isApproved: true } },
+          participants: true,
         },
       }),
       this.prisma.chatRoom.count({ where }),
@@ -129,13 +115,10 @@ export class ChatService {
       throw new Error('Room not found');
     }
 
-    const isApproved = !room.isApprovalRequired;
-
     return this.prisma.chatParticipant.create({
       data: {
         roomId,
         userId,
-        isApproved,
       },
     });
   }
@@ -146,24 +129,16 @@ export class ChatService {
   async approveJoin(
     roomId: string,
     userId: string,
-    actorId: string,
+    adminId: string,
   ): Promise<any> {
-    const updated = await this.prisma.chatParticipant.update({
-      where: {
-        roomId_userId: { roomId, userId },
-      },
-      data: { isApproved: true },
+    await this.logsService.createAdminLog({
+      adminId: adminId,
+      action: 'CHAT_JOIN_APPROVE',
+      target: roomId,
+      description: `Approved user ${userId} to join room`,
     });
 
-    await this.logsService.create({
-      actorId,
-      actionType: 'CHAT_JOIN_APPROVE',
-      targetType: 'chat_room',
-      targetId: roomId,
-      details: { userId },
-    });
-
-    return updated;
+    return { success: true };
   }
 
   /**
@@ -182,7 +157,7 @@ export class ChatService {
    */
   async getParticipants(roomId: string): Promise<any[]> {
     return this.prisma.chatParticipant.findMany({
-      where: { roomId, isApproved: true },
+      where: { roomId },
       include: { user: true },
     });
   }
@@ -193,23 +168,16 @@ export class ChatService {
   async canSendMessage(
     roomId: string,
     userId: string,
-    userType: OwnerType,
   ): Promise<boolean> {
     const room = await this.getRoomById(roomId);
-
     if (!room) return false;
 
-    // If bidirectional, anyone can send
-    if (room.isBidirectional) return true;
+    // Check if user is participant
+    const participant = await this.prisma.chatParticipant.findUnique({
+      where: { roomId_userId: { roomId, userId } },
+    });
 
-    // If unidirectional, only owner or vice owners can send
-    if (room.ownerId === userId && room.ownerType === userType) {
-      return true;
-    }
-
-    // TODO: Check vice owner status
-    // For now, only room owner can send in unidirectional mode
-    return false;
+    return !!participant;
   }
 
   /**
@@ -218,11 +186,10 @@ export class ChatService {
   async createMessage(data: {
     roomId: string;
     senderId: string;
-    senderType: OwnerType;
     content?: string;
     fileUrl?: string;
-    fileType?: string;
     fileName?: string;
+    fileSize?: number;
   }): Promise<ChatMessage> {
     // Check bad words filter
     if (data.content) {
@@ -236,11 +203,10 @@ export class ChatService {
       data: {
         roomId: data.roomId,
         senderId: data.senderId,
-        senderType: data.senderType,
-        content: data.content,
+        content: data.content || '',
         fileUrl: data.fileUrl,
-        fileType: data.fileType,
         fileName: data.fileName,
+        fileSize: data.fileSize,
       },
     });
   }
@@ -270,7 +236,7 @@ export class ChatService {
       orderBy: { createdAt: 'desc' },
       include: {
         sender: {
-          select: { id: true, name: true, nickname: true, profileImageUrl: true },
+          select: { id: true, name: true, nickname: true, profileImage: true },
         },
       },
     });
@@ -294,8 +260,21 @@ export class ChatService {
     messageId: string,
     pinnedBy: string,
   ): Promise<any> {
+    const message = await this.prisma.chatMessage.findUnique({
+      where: { id: messageId },
+    });
+
+    if (!message) {
+      throw new Error('Message not found');
+    }
+
     return this.prisma.chatPinnedMessage.create({
-      data: { roomId, messageId, pinnedBy },
+      data: {
+        roomId,
+        messageId,
+        content: message.content,
+        pinnedBy
+      },
     });
   }
 
@@ -314,8 +293,7 @@ export class ChatService {
   async getPinnedMessages(roomId: string): Promise<any[]> {
     return this.prisma.chatPinnedMessage.findMany({
       where: { roomId },
-      include: { message: true },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { pinnedAt: 'desc' },
     });
   }
 
@@ -330,9 +308,9 @@ export class ChatService {
   /**
    * Add blocked keyword
    */
-  async addBlockedKeyword(keyword: string, createdBy: string): Promise<any> {
+  async addBlockedKeyword(keyword: string): Promise<any> {
     return this.prisma.blockedKeyword.create({
-      data: { keyword, createdBy },
+      data: { keyword },
     });
   }
 
@@ -357,12 +335,11 @@ export class ChatService {
    */
   async broadcastMessage(data: {
     senderId: string;
-    senderType: OwnerType;
     content: string;
     fileUrl?: string;
   }): Promise<number> {
     const rooms = await this.prisma.chatRoom.findMany({
-      where: { type: 'GROUP' },
+      where: { type: 'ONE_TO_N' },
     });
 
     const messages = await Promise.all(
@@ -370,7 +347,6 @@ export class ChatService {
         this.createMessage({
           roomId: room.id,
           senderId: data.senderId,
-          senderType: data.senderType,
           content: data.content,
           fileUrl: data.fileUrl,
         }),
@@ -389,17 +365,17 @@ export class ChatService {
     const windowStart = now - 30000; // 30 seconds ago
 
     // Remove old entries
-    await this.redis.zremrangebyscore(key, 0, windowStart);
+    await this.redis.zRemRangeByScore(key, 0, windowStart);
 
     // Count messages in window
-    const count = await this.redis.zcount(key, windowStart, now);
+    const count = await this.redis.zCount(key, windowStart, now);
 
     if (count >= 30) {
       return false; // Rate limit exceeded
     }
 
     // Add new entry
-    await this.redis.zadd(key, now, `${now}`);
+    await this.redis.zAdd(key, [{ score: now, value: `${now}` }]);
     await this.redis.expire(key, 30);
 
     return true;

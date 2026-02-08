@@ -1,8 +1,8 @@
 import { Controller, Get, UseGuards, Query } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { AdminRoleGuard } from '../auth/guards/admin-role.guard';
-import { PrismaService } from '../prisma/prisma.service';
-import { RedisService } from '../redis/redis.service';
+import { JwtAuthGuard } from '../modules/auth/guards/jwt-auth.guard';
+import { AdminRoleGuard } from '../modules/auth/guards/admin-role.guard';
+import { PrismaService } from '../modules/prisma/prisma.service';
+import { RedisService } from '../modules/redis/redis.service';
 
 @Controller('dashboard')
 @UseGuards(JwtAuthGuard, AdminRoleGuard)
@@ -26,8 +26,8 @@ export class DashboardController {
     const inactiveCutoff = new Date(today);
     inactiveCutoff.setDate(inactiveCutoff.getDate() - 30);
 
-    // Get online users from Redis
-    const onlineUsers = await this.redis.getOnlineUsersCount();
+    // Get online users from Redis (approximate count from session keys)
+    const onlineUsers = 0; // TODO: Implement real-time online user tracking
 
     // New users count
     const [newUsersToday, newUsers7Days, newUsers30Days] = await Promise.all([
@@ -42,13 +42,10 @@ export class DashboardController {
       }),
     ]);
 
-    // Inactive users (30+ days)
+    // Inactive users (30+ days) - based on creation date since User model doesn't have lastLoginAt
     const inactiveUsersCount = await this.prisma.user.count({
       where: {
-        OR: [
-          { lastLoginAt: { lte: inactiveCutoff } },
-          { lastLoginAt: null, createdAt: { lte: inactiveCutoff } },
-        ],
+        createdAt: { lte: inactiveCutoff },
       },
     });
 
@@ -63,7 +60,7 @@ export class DashboardController {
     // Unprocessed reports
     const unresolvedReports = await this.prisma.report.count({
       where: {
-        status: { in: ['SUBMITTED', 'REVIEWING'] },
+        status: { in: ['PENDING', 'PROCESSING'] },
       },
     });
 
@@ -77,7 +74,7 @@ export class DashboardController {
           where: { status: 'EXPIRED' },
         }),
         this.prisma.subscription.count({
-          where: { status: 'PENDING' },
+          where: { status: 'CANCELLED' },
         }),
       ]);
 

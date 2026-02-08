@@ -11,10 +11,10 @@ import {
   Req,
 } from '@nestjs/common';
 import { BannersService } from './banners.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { AdminRoleGuard } from '../auth/guards/admin-role.guard';
-import { PermissionGuard } from '../auth/guards/permission.guard';
-import { RequirePermission } from '../auth/decorators/require-permission.decorator';
+import { JwtAuthGuard } from '../modules/auth/guards/jwt-auth.guard';
+import { AdminRoleGuard } from '../modules/auth/guards/admin-role.guard';
+import { PermissionGuard } from '../modules/auth/guards/permission.guard';
+import { RequirePermission } from '../decorators/require-permission.decorator';
 import { BannerPos, DismissType } from '@prisma/client';
 
 @Controller('banners')
@@ -74,15 +74,18 @@ export class BannersController {
       title: string;
       imageUrl: string;
       linkUrl?: string;
-      startAt: string;
-      endAt: string;
+      startDate: string;
+      endDate: string;
       position: BannerPos;
     },
   ) {
     return this.bannersService.createBanner({
-      ...data,
-      startAt: new Date(data.startAt),
-      endAt: new Date(data.endAt),
+      title: data.title,
+      imageUrl: data.imageUrl,
+      linkUrl: data.linkUrl,
+      position: data.position,
+      startDate: new Date(data.startDate),
+      endDate: new Date(data.endDate),
     });
   }
 
@@ -98,7 +101,7 @@ export class BannersController {
     @Req() req: any,
   ) {
     if (data.startAt) data.startAt = new Date(data.startAt);
-    if (data.endAt) data.endAt = new Date(data.endAt);
+    if (data.endDate) data.endDate = new Date(data.endDate);
 
     return this.bannersService.updateBanner(id, data, req.user.id);
   }
@@ -167,14 +170,16 @@ export class BannersController {
       title: string;
       content?: string;
       imageUrl?: string;
-      startAt: string;
-      endAt: string;
+      startDate: string;
+      endDate: string;
     },
   ) {
     return this.bannersService.createPopup({
-      ...data,
-      startAt: new Date(data.startAt),
-      endAt: new Date(data.endAt),
+      title: data.title,
+      content: data.content,
+      imageUrl: data.imageUrl,
+      startDate: new Date(data.startDate),
+      endDate: new Date(data.endDate),
     });
   }
 
@@ -190,7 +195,7 @@ export class BannersController {
     @Req() req: any,
   ) {
     if (data.startAt) data.startAt = new Date(data.startAt);
-    if (data.endAt) data.endAt = new Date(data.endAt);
+    if (data.endDate) data.endDate = new Date(data.endDate);
 
     return this.bannersService.updatePopup(id, data, req.user.id);
   }

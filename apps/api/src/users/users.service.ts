@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { LogsService } from '../logs/logs.service';
+import { PrismaService } from '../modules/prisma/prisma.service';
+import { LogsService } from '../modules/logs/logs.service';
 import { Prisma, User } from '@prisma/client';
 import * as XLSX from 'xlsx';
+import { AdminScopeHelper, AdminWithRelations } from '../common/helpers/admin-scope.helper';
 
 @Injectable()
 export class UsersService {
@@ -22,7 +23,22 @@ export class UsersService {
    * Find user by ID
    */
   async findById(id: string): Promise<User | null> {
-    return this.prisma.user.findUnique({ where: { id } });
+    return this.prisma.user.findFirst({
+      where: {
+        id,
+        deletedAt: null, // 삭제되지 않은 회원만 조회
+      },
+      include: {
+        manager: {
+          select: {
+            id: true,
+            realName: true,
+            salesName: true,
+            region: true,
+          },
+        },
+      },
+    });
   }
 
   /**
@@ -49,19 +65,24 @@ export class UsersService {
   /**
    * Search and filter users with pagination
    */
-  async findAll(params: {
-    search?: string;
-    affiliationCode?: string;
-    isBanned?: boolean;
-    createdAfter?: Date;
-    createdBefore?: Date;
-    lastLoginAfter?: Date;
-    lastLoginBefore?: Date;
-    skip?: number;
-    take?: number;
-    orderBy?: Prisma.UserOrderByWithRelationInput;
-  }) {
-    const where: Prisma.UserWhereInput = {};
+  async findAll(
+    params: {
+      search?: string;
+      affiliateCode?: string;
+      isBanned?: boolean;
+      createdAfter?: Date;
+      createdBefore?: Date;
+      lastLoginAfter?: Date;
+      lastLoginBefore?: Date;
+      skip?: number;
+      take?: number;
+      orderBy?: Prisma.UserOrderByWithRelationInput;
+    },
+    currentAdmin?: AdminWithRelations,
+  ) {
+    let where: Prisma.UserWhereInput = {
+      deletedAt: null, // 삭제되지 않은 회원만 조회
+    };
 
     if (params.search) {
       where.OR = [
@@ -71,8 +92,8 @@ export class UsersService {
       ];
     }
 
-    if (params.affiliationCode) {
-      where.affiliationCode = params.affiliationCode;
+    if (params.affiliateCode) {
+      where.affiliateCode = params.affiliateCode;
     }
 
     if (params.isBanned !== undefined) {
@@ -91,12 +112,27 @@ export class UsersService {
       if (params.lastLoginBefore) where.lastLoginAt.lte = params.lastLoginBefore;
     }
 
+    // 관리자 데이터 스코핑 적용
+    if (currentAdmin) {
+      where = AdminScopeHelper.addAffiliationCodeFilter(currentAdmin, where);
+    }
+
     const [users, total] = await Promise.all([
       this.prisma.user.findMany({
         where,
         skip: params.skip || 0,
         take: params.take || 20,
         orderBy: params.orderBy || { createdAt: 'desc' },
+        include: {
+          manager: {
+            select: {
+              id: true,
+              realName: true,
+              salesName: true,
+              region: true,
+            },
+          },
+        },
       }),
       this.prisma.user.count({ where }),
     ]);
@@ -116,12 +152,10 @@ export class UsersService {
     const updated = await this.prisma.user.update({ where: { id }, data });
 
     if (actorId) {
-      await this.logsService.create({
-        actorId,
-        actionType: 'USER_UPDATE',
-        targetType: 'user',
-        targetId: id,
-        details: { before, after: updated },
+      await this.logsService.createAdminLog({
+        adminId: actorId,
+        action: 'USER_UPDATE',
+        target: id,
       });
     }
 
@@ -131,19 +165,22 @@ export class UsersService {
   /**
    * Ban user
    */
-  async ban(id: string, reason: string, actorId: string): Promise<User> {
+  async ban(id: string, reason: string, adminId: string): Promise<User> {
     const before = await this.findById(id);
     const updated = await this.prisma.user.update({
       where: { id },
       data: { isBanned: true, banReason: reason },
     });
 
-    await this.logsService.create({
-      actorId,
-      actionType: 'USER_BAN',
-      targetType: 'user',
-      targetId: id,
-      details: { before, after: updated, reason },
+    await this.logsService.createAdminLog({
+      adminId: adminId,
+      action: 'USER_BAN',
+      target: id,
+      targetType: 'USER',
+      description: `회원 정지: ${reason}`,
+      changesBefore: before ? { isBanned: before.isBanned ?? false, banReason: before.banReason ?? null } : null,
+      changesAfter: { isBanned: updated.isBanned, banReason: updated.banReason },
+      status: 'SUCCESS',
     });
 
     return updated;
@@ -152,19 +189,22 @@ export class UsersService {
   /**
    * Unban user
    */
-  async unban(id: string, actorId: string): Promise<User> {
+  async unban(id: string, adminId: string): Promise<User> {
     const before = await this.findById(id);
     const updated = await this.prisma.user.update({
       where: { id },
       data: { isBanned: false, banReason: null },
     });
 
-    await this.logsService.create({
-      actorId,
-      actionType: 'USER_UNBAN',
-      targetType: 'user',
-      targetId: id,
-      details: { before, after: updated },
+    await this.logsService.createAdminLog({
+      adminId: adminId,
+      action: 'USER_UNBAN',
+      target: id,
+      targetType: 'USER',
+      description: '회원 정지 해제',
+      changesBefore: before ? { isBanned: before.isBanned ?? false, banReason: before.banReason ?? null } : null,
+      changesAfter: { isBanned: updated.isBanned, banReason: updated.banReason },
+      status: 'SUCCESS',
     });
 
     return updated;
@@ -197,12 +237,11 @@ export class UsersService {
       data: { userId, adminId, content },
     });
 
-    await this.logsService.create({
-      actorId: adminId,
-      actionType: 'MEMBER_MEMO_CREATE',
-      targetType: 'user',
-      targetId: userId,
-      details: { memo },
+    await this.logsService.createAdminLog({
+      adminId: adminId,
+      action: 'MEMBER_MEMO_CREATE',
+      target: userId,
+      description: content,
     });
 
     return memo;
@@ -234,12 +273,11 @@ export class UsersService {
       data: { content },
     });
 
-    await this.logsService.create({
-      actorId: adminId,
-      actionType: 'MEMBER_MEMO_UPDATE',
-      targetType: 'memo',
-      targetId: memoId,
-      details: { before, after: updated },
+    await this.logsService.createAdminLog({
+      adminId: adminId,
+      action: 'MEMBER_MEMO_UPDATE',
+      target: memoId,
+      description: content,
     });
 
     return updated;
@@ -255,29 +293,30 @@ export class UsersService {
 
     await this.prisma.memberMemo.delete({ where: { id: memoId } });
 
-    await this.logsService.create({
-      actorId: adminId,
-      actionType: 'MEMBER_MEMO_DELETE',
-      targetType: 'memo',
-      targetId: memoId,
-      details: { deleted: memo },
+    await this.logsService.createAdminLog({
+      adminId: adminId,
+      action: 'MEMBER_MEMO_DELETE',
+      target: memoId,
+      description: `Deleted memo for user: ${memo?.userId}`,
     });
   }
 
   /**
    * Export users to Excel (통합관리자만)
    */
-  async exportToExcel(filters: any): Promise<Buffer> {
-    const { users } = await this.findAll({ ...filters, skip: 0, take: 10000 });
+  async exportToExcel(filters: any, currentAdmin?: AdminWithRelations): Promise<Buffer> {
+    const { users } = await this.findAll({ ...filters, skip: 0, take: 10000 }, currentAdmin);
 
-    const data = users.map((user) => ({
+    const data = users.map((user: any) => ({
       ID: user.id,
       이메일: user.email || '',
       이름: user.name,
       닉네임: user.nickname,
       전화번호: user.phone,
       성별: user.gender,
-      소속코드: user.affiliationCode,
+      소속코드: user.affiliateCode,
+      담당자: user.manager?.name || '',
+      담당자지역: user.manager?.region || '',
       가입일: user.createdAt.toISOString(),
       최종로그인: user.lastLoginAt?.toISOString() || '',
       추방여부: user.isBanned ? '예' : '아니오',
@@ -341,5 +380,50 @@ export class UsersService {
         },
       },
     });
+  }
+
+  /**
+   * Soft delete user
+   */
+  async delete(id: string, adminId: string): Promise<User> {
+    // deletedAt 필터 없이 직접 조회 (이미 삭제된 회원도 찾기 위해)
+    const user = await this.prisma.user.findUnique({ where: { id } });
+
+    if (!user) {
+      throw new Error('회원을 찾을 수 없습니다.');
+    }
+
+    // 이미 삭제된 회원이면 그냥 반환 (에러 대신 성공 처리)
+    if (user.deletedAt) {
+      return user;
+    }
+
+    // 삭제 시 unique 제약조건 컬럼들을 변경하여 재가입 가능하도록 함
+    const timestamp = Date.now();
+    const updated = await this.prisma.user.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+        isActive: false,
+        // unique 제약조건 해제를 위해 값 변경
+        email: null, // nullable이므로 null로 설정
+        phone: `deleted_${id}_${timestamp}`, // 필수이므로 변경
+        nickname: null, // nullable이므로 null로 설정
+        providerId: null, // nullable이므로 null로 설정
+      },
+    });
+
+    await this.logsService.createAdminLog({
+      adminId,
+      action: 'USER_DELETE',
+      target: id,
+      targetType: 'USER',
+      description: `회원 삭제: ${user.name} (${user.phone})`,
+      changesBefore: user,  // 삭제 전 전체 데이터 백업
+      changesAfter: { deletedAt: updated.deletedAt, isActive: updated.isActive },
+      status: 'SUCCESS',
+    });
+
+    return updated;
   }
 }

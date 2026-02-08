@@ -9,12 +9,13 @@ import {
   Query,
   UseGuards,
   Req,
+  BadRequestException,
 } from '@nestjs/common';
 import { AdminsService } from './admins.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { AdminRoleGuard } from '../auth/guards/admin-role.guard';
-import { PermissionGuard } from '../auth/guards/permission.guard';
-import { RequirePermission } from '../auth/decorators/require-permission.decorator';
+import { JwtAuthGuard } from '../modules/auth/guards/jwt-auth.guard';
+import { AdminRoleGuard } from '../modules/auth/guards/admin-role.guard';
+import { PermissionGuard } from '../modules/auth/guards/permission.guard';
+import { RequirePermission } from '../decorators/require-permission.decorator';
 import { AdminTier } from '@prisma/client';
 
 @Controller('admins')
@@ -29,6 +30,7 @@ export class AdminsController {
   @UseGuards(PermissionGuard)
   @RequirePermission('admins.manage')
   async findAll(
+    @Req() req: any,
     @Query('tier') tier?: AdminTier,
     @Query('isActive') isActive?: string,
     @Query('region') region?: string,
@@ -42,7 +44,7 @@ export class AdminsController {
     if (skip) params.skip = parseInt(skip, 10);
     if (take) params.take = parseInt(take, 10);
 
-    return this.adminsService.findAll(params);
+    return this.adminsService.findAll(params, req.user);
   }
 
   /**
@@ -64,16 +66,22 @@ export class AdminsController {
   async create(
     @Body()
     data: {
-      email: string;
+      loginId: string;
+      email?: string;
       password: string;
-      name: string;
+      realName: string;
+      salesName: string;
       tier: AdminTier;
       region?: string;
       logoUrl?: string;
     },
     @Req() req: any,
   ) {
-    return this.adminsService.create(data, req.user.id);
+    try {
+      return await this.adminsService.create(data, req.user.id);
+    } catch (error) {
+      throw new BadRequestException(error.message || '관리자 생성에 실패했습니다.');
+    }
   }
 
   /**
@@ -128,16 +136,15 @@ export class AdminsController {
   /**
    * Set admin permission
    */
-  @Put(':id/permissions/:menuKey')
+  @Put(':id/permissions/:permission')
   @UseGuards(PermissionGuard)
   @RequirePermission('admins.manage')
   async setPermission(
     @Param('id') id: string,
-    @Param('menuKey') menuKey: string,
-    @Body('allowed') allowed: boolean,
+    @Param('permission') permission: string,
     @Req() req: any,
   ) {
-    return this.adminsService.setPermission(id, menuKey, allowed, req.user.id);
+    return this.adminsService.setPermission(id, permission, req.user.id);
   }
 
   /**
@@ -148,6 +155,9 @@ export class AdminsController {
   @RequirePermission('admins.manage')
   async getInviteLink(@Param('id') id: string, @Query('baseUrl') baseUrl: string) {
     const admin = await this.adminsService.findById(id);
+    if (!admin || !admin.affiliationCode) {
+      throw new Error('Admin not found or has no affiliation code');
+    }
     const link = this.adminsService.generateInviteLink(
       admin.affiliationCode,
       baseUrl || 'https://daehanpns.net',
@@ -188,22 +198,54 @@ export class AdminsController {
   }
 
   /**
-   * Deactivate admin
+   * Get deletion preview - check subordinates and affected data
    */
-  @Post(':id/deactivate')
+  @Get(':id/deletion-preview')
   @UseGuards(PermissionGuard)
   @RequirePermission('admins.manage')
-  async deactivate(@Param('id') id: string, @Req() req: any) {
-    return this.adminsService.deactivate(id, req.user.id);
+  async getDeletionPreview(@Param('id') id: string) {
+    return this.adminsService.getDeletionPreview(id);
   }
 
   /**
-   * Activate admin
+   * Delete admin with subordinates handling
    */
-  @Post(':id/activate')
+  @Post(':id/delete-with-subordinates')
   @UseGuards(PermissionGuard)
   @RequirePermission('admins.manage')
-  async activate(@Param('id') id: string, @Req() req: any) {
-    return this.adminsService.activate(id, req.user.id);
+  async deleteWithSubordinates(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      mainAdminUsersTarget?: string;
+      actions: Array<{
+        subordinateId: string;
+        action: 'reassign' | 'delete';
+        targetAdminId?: string;
+      }>;
+    },
+    @Req() req: any,
+  ) {
+    try {
+      return await this.adminsService.deleteWithSubordinates(
+        id,
+        body.mainAdminUsersTarget || null,
+        body.actions,
+        req.user.id,
+      );
+    } catch (error) {
+      throw new BadRequestException(error.message || '삭제 처리에 실패했습니다.');
+    }
+  }
+
+  /**
+   * Delete admin (soft delete)
+   */
+  @Delete(':id')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('admins.manage')
+  async delete(@Param('id') id: string, @Req() req: any) {
+    await this.adminsService.delete(id, req.user.id);
+    return { success: true };
   }
 }

@@ -8,10 +8,10 @@ import {
   Req,
 } from '@nestjs/common';
 import { AppVersionsService } from './app-versions.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { AdminRoleGuard } from '../auth/guards/admin-role.guard';
-import { PermissionGuard } from '../auth/guards/permission.guard';
-import { RequirePermission } from '../auth/decorators/require-permission.decorator';
+import { JwtAuthGuard } from '../modules/auth/guards/jwt-auth.guard';
+import { AdminRoleGuard } from '../modules/auth/guards/admin-role.guard';
+import { PermissionGuard } from '../modules/auth/guards/permission.guard';
+import { RequirePermission } from '../decorators/require-permission.decorator';
 import { Platform } from '@prisma/client';
 
 @Controller('app-versions')
@@ -19,37 +19,27 @@ export class AppVersionsController {
   constructor(private readonly appVersionsService: AppVersionsService) {}
 
   /**
-   * Get minimum version for platform (public)
+   * Get latest version for platform (public)
    */
-  @Get('min')
-  async getMinVersion(@Query('platform') platform: Platform) {
-    return this.appVersionsService.getMinVersion(platform);
+  @Get('latest')
+  async getLatestVersion(@Query('platform') platform: Platform) {
+    return this.appVersionsService.getLatestVersion(platform);
   }
 
   /**
-   * Check if app version is valid (public)
+   * Check if app version needs update (public)
    */
   @Get('check')
   async checkVersion(
     @Query('platform') platform: Platform,
     @Query('version') version: string,
+    @Query('buildNumber') buildNumber: string,
   ) {
-    const minVersion = await this.appVersionsService.getMinVersion(platform);
-
-    if (!minVersion) {
-      return { valid: true, updateRequired: false };
-    }
-
-    const valid = this.appVersionsService.isVersionValid(
+    return this.appVersionsService.checkVersion(
+      platform,
       version,
-      minVersion.minVersion,
+      parseInt(buildNumber, 10),
     );
-
-    return {
-      valid,
-      updateRequired: !valid,
-      minVersion: minVersion.minVersion,
-    };
   }
 
   /**
@@ -58,23 +48,38 @@ export class AppVersionsController {
   @Get()
   @UseGuards(JwtAuthGuard, AdminRoleGuard, PermissionGuard)
   @RequirePermission('app_versions.manage')
-  async getAll() {
+  async getAll(@Query('platform') platform?: Platform) {
+    if (platform) {
+      return this.appVersionsService.getByPlatform(platform);
+    }
     return this.appVersionsService.getAll();
   }
 
   /**
-   * Set minimum version (통합관리자만)
+   * Create new app version (통합관리자만)
    */
   @Post()
   @UseGuards(JwtAuthGuard, AdminRoleGuard, PermissionGuard)
   @RequirePermission('app_versions.manage')
-  async setMinVersion(
-    @Body() data: { platform: Platform; minVersion: string },
+  async createVersion(
+    @Body()
+    data: {
+      platform: Platform;
+      version: string;
+      buildNumber: number;
+      isForceUpdate: boolean;
+      updateMessage?: string;
+      downloadUrl?: string;
+    },
     @Req() req: any,
   ) {
-    return this.appVersionsService.setMinVersion(
+    return this.appVersionsService.createVersion(
       data.platform,
-      data.minVersion,
+      data.version,
+      data.buildNumber,
+      data.isForceUpdate,
+      data.updateMessage || null,
+      data.downloadUrl || null,
       req.user.id,
     );
   }

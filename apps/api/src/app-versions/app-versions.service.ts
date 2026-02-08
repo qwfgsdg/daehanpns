@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { LogsService } from '../logs/logs.service';
+import { PrismaService } from '../modules/prisma/prisma.service';
+import { LogsService } from '../modules/logs/logs.service';
 import { AppVersion, Platform } from '@prisma/client';
 
 @Injectable()
@@ -11,54 +11,48 @@ export class AppVersionsService {
   ) {}
 
   /**
-   * Get minimum version for platform
+   * Get latest version for platform
    */
-  async getMinVersion(platform: Platform): Promise<AppVersion | null> {
+  async getLatestVersion(platform: Platform): Promise<AppVersion | null> {
     return this.prisma.appVersion.findFirst({
       where: { platform },
-      orderBy: { updatedAt: 'desc' },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
   /**
-   * Set minimum version for platform (통합관리자만)
+   * Create new app version (통합관리자만)
    */
-  async setMinVersion(
+  async createVersion(
     platform: Platform,
-    minVersion: string,
-    updatedBy: string,
+    version: string,
+    buildNumber: number,
+    isForceUpdate: boolean,
+    updateMessage: string | null,
+    downloadUrl: string | null,
+    actorId: string,
   ): Promise<AppVersion> {
-    const before = await this.getMinVersion(platform);
+    const before = await this.getLatestVersion(platform);
 
-    // Update existing or create new
-    const updated = await this.prisma.appVersion.upsert({
-      where: {
-        id: before?.id || 'new',
-      },
-      update: {
-        minVersion,
-        updatedBy,
-      },
-      create: {
+    const created = await this.prisma.appVersion.create({
+      data: {
         platform,
-        minVersion,
-        updatedBy,
+        version,
+        buildNumber,
+        isForceUpdate,
+        updateMessage,
+        downloadUrl,
       },
     });
 
-    await this.logsService.create({
-      actorId: updatedBy,
-      actionType: 'APP_VERSION_UPDATE',
-      targetType: 'app_version',
-      targetId: updated.id,
-      details: {
-        before: before?.minVersion,
-        after: minVersion,
-        platform,
-      },
+    await this.logsService.createAdminLog({
+      adminId: actorId,
+      action: 'APP_VERSION_CREATE',
+      target: created.id,
+      description: `Created ${platform} version ${version} (build ${buildNumber})${isForceUpdate ? ' - FORCE UPDATE' : ''}`,
     });
 
-    return updated;
+    return created;
   }
 
   /**
@@ -66,8 +60,42 @@ export class AppVersionsService {
    */
   async getAll(): Promise<AppVersion[]> {
     return this.prisma.appVersion.findMany({
-      orderBy: { updatedAt: 'desc' },
+      orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /**
+   * Get versions by platform
+   */
+  async getByPlatform(platform: Platform): Promise<AppVersion[]> {
+    return this.prisma.appVersion.findMany({
+      where: { platform },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /**
+   * Check if app version needs update
+   */
+  async checkVersion(
+    platform: Platform,
+    currentVersion: string,
+    currentBuildNumber: number,
+  ): Promise<{
+    needsUpdate: boolean;
+    isForceUpdate: boolean;
+    latestVersion: AppVersion | null;
+  }> {
+    const latest = await this.getLatestVersion(platform);
+
+    if (!latest) {
+      return { needsUpdate: false, isForceUpdate: false, latestVersion: null };
+    }
+
+    const needsUpdate = currentBuildNumber < latest.buildNumber;
+    const isForceUpdate = needsUpdate && latest.isForceUpdate;
+
+    return { needsUpdate, isForceUpdate, latestVersion: latest };
   }
 
   /**

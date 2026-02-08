@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { LogsService } from '../logs/logs.service';
+import { PrismaService } from '../modules/prisma/prisma.service';
+import { LogsService } from '../modules/logs/logs.service';
 import { Banner, Popup, BannerPos, DismissType, Prisma } from '@prisma/client';
 
 @Injectable()
@@ -19,8 +19,8 @@ export class BannersService {
     title: string;
     imageUrl: string;
     linkUrl?: string;
-    startAt: Date;
-    endAt: Date;
+    startDate: Date;
+    endDate: Date;
     position: BannerPos;
   }): Promise<Banner> {
     return this.prisma.banner.create({
@@ -28,8 +28,8 @@ export class BannersService {
         title: data.title,
         imageUrl: data.imageUrl,
         linkUrl: data.linkUrl,
-        startAt: data.startAt,
-        endAt: data.endAt,
+        startDate: data.startDate,
+        endDate: data.endDate,
         position: data.position,
       },
     });
@@ -69,8 +69,8 @@ export class BannersService {
     const now = new Date();
     const where: Prisma.BannerWhereInput = {
       isActive: true,
-      startAt: { lte: now },
-      endAt: { gte: now },
+      startDate: { lte: now },
+      endDate: { gte: now },
     };
 
     if (position) where.position = position;
@@ -103,12 +103,10 @@ export class BannersService {
     });
 
     if (actorId) {
-      await this.logsService.create({
-        actorId,
-        actionType: 'BANNER_UPDATE',
-        targetType: 'banner',
-        targetId: id,
-        details: { before, after: updated },
+      await this.logsService.createAdminLog({
+        adminId: actorId,
+        action: 'BANNER_UPDATE',
+        target: id,
       });
     }
 
@@ -124,12 +122,10 @@ export class BannersService {
     await this.prisma.banner.delete({ where: { id } });
 
     if (actorId) {
-      await this.logsService.create({
-        actorId,
-        actionType: 'BANNER_DELETE',
-        targetType: 'banner',
-        targetId: id,
-        details: { deleted: banner },
+      await this.logsService.createAdminLog({
+        adminId: actorId,
+        action: 'BANNER_DELETE',
+        target: id,
       });
     }
   }
@@ -143,16 +139,16 @@ export class BannersService {
     title: string;
     content?: string;
     imageUrl?: string;
-    startAt: Date;
-    endAt: Date;
+    startDate: Date;
+    endDate: Date;
   }): Promise<Popup> {
     // Check if there are already 5 active popups
     const now = new Date();
     const activeCount = await this.prisma.popup.count({
       where: {
         isActive: true,
-        startAt: { lte: now },
-        endAt: { gte: now },
+        startDate: { lte: now },
+        endDate: { gte: now },
       },
     });
 
@@ -163,10 +159,10 @@ export class BannersService {
     return this.prisma.popup.create({
       data: {
         title: data.title,
-        content: data.content,
+        content: data.content || '',
         imageUrl: data.imageUrl,
-        startAt: data.startAt,
-        endAt: data.endAt,
+        startDate: data.startDate,
+        endDate: data.endDate,
       },
     });
   }
@@ -201,8 +197,8 @@ export class BannersService {
     return this.prisma.popup.findMany({
       where: {
         isActive: true,
-        startAt: { lte: now },
-        endAt: { gte: now },
+        startDate: { lte: now },
+        endDate: { gte: now },
       },
       orderBy: { createdAt: 'desc' },
       take: 5,
@@ -231,12 +227,10 @@ export class BannersService {
     });
 
     if (actorId) {
-      await this.logsService.create({
-        actorId,
-        actionType: 'POPUP_UPDATE',
-        targetType: 'popup',
-        targetId: id,
-        details: { before, after: updated },
+      await this.logsService.createAdminLog({
+        adminId: actorId,
+        action: 'POPUP_UPDATE',
+        target: id,
       });
     }
 
@@ -252,12 +246,10 @@ export class BannersService {
     await this.prisma.popup.delete({ where: { id } });
 
     if (actorId) {
-      await this.logsService.create({
-        actorId,
-        actionType: 'POPUP_DELETE',
-        targetType: 'popup',
-        targetId: id,
-        details: { deleted: popup },
+      await this.logsService.createAdminLog({
+        adminId: actorId,
+        action: 'POPUP_DELETE',
+        target: id,
       });
     }
   }
@@ -268,20 +260,20 @@ export class BannersService {
   async dismissPopup(
     userId: string,
     popupId: string,
-    dismissType: DismissType,
+    type: DismissType,
   ): Promise<any> {
     return this.prisma.popupDismissal.upsert({
       where: {
-        userId_popupId: { userId, popupId },
+        popupId_userId: { userId, popupId },
       },
       update: {
-        dismissType,
+        type,
         dismissedAt: new Date(),
       },
       create: {
         userId,
         popupId,
-        dismissType,
+        type,
       },
     });
   }
@@ -301,9 +293,9 @@ export class BannersService {
       where: {
         userId,
         OR: [
-          { dismissType: 'PERMANENT' },
+          { type: 'FOREVER' },
           {
-            dismissType: 'TODAY',
+            type: 'TODAY',
             dismissedAt: { gte: todayStart },
           },
         ],
@@ -326,7 +318,7 @@ export class BannersService {
     await this.prisma.popupDismissal.deleteMany({
       where: {
         userId,
-        dismissType: 'TODAY',
+        type: 'TODAY',
         dismissedAt: { gte: todayStart },
       },
     });

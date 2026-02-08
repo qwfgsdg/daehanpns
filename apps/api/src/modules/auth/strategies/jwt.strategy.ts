@@ -22,7 +22,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (payload.loginId) {
       const admin = await this.prisma.admin.findUnique({
         where: { id: payload.sub },
-        include: { permissions: true },
+        include: {
+          permissions: true,
+          parent: {
+            include: {
+              parent: true, // 일반관리자 -> 중간관리자 -> 대표관리자를 위해 parent.parent까지 포함
+            },
+          },
+        },
       });
 
       if (!admin || !admin.isActive) {
@@ -30,9 +37,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       }
 
       return {
-        userId: admin.id,
-        loginId: admin.loginId,
-        tier: admin.tier,
+        ...admin, // 전체 admin 객체 포함 (parent, parent.parent 포함)
+        sub: admin.id, // JWT payload의 sub 필드 유지
         permissions: admin.permissions.map((p) => p.permission),
         isAdmin: true,
       };
@@ -48,6 +54,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     return {
+      id: user.id,
+      sub: user.id,
       userId: user.id,
       phone: user.phone,
       provider: user.provider,

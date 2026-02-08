@@ -2,8 +2,6 @@ import {
   Controller,
   Get,
   Post,
-  Put,
-  Delete,
   Body,
   Param,
   Query,
@@ -11,66 +9,38 @@ import {
   Req,
 } from '@nestjs/common';
 import { SubscriptionsService } from './subscriptions.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { AdminRoleGuard } from '../auth/guards/admin-role.guard';
-import { PermissionGuard } from '../auth/guards/permission.guard';
-import { RequirePermission } from '../auth/decorators/require-permission.decorator';
-import { SubscriptionStatus } from '@prisma/client';
+import { JwtAuthGuard } from '../modules/auth/guards/jwt-auth.guard';
+import { AdminRoleGuard } from '../modules/auth/guards/admin-role.guard';
+import { PermissionGuard } from '../modules/auth/guards/permission.guard';
+import { RequirePermission } from '../decorators/require-permission.decorator';
+import { SubscriptionStatus, RoomType } from '@prisma/client';
 
 @Controller('subscriptions')
 export class SubscriptionsController {
   constructor(private readonly subscriptionsService: SubscriptionsService) {}
 
-  // ==================== SUBSCRIPTIONS ====================
-
   /**
-   * Create subscription request
-   */
-  @Post()
-  @UseGuards(JwtAuthGuard)
-  async create(
-    @Body() data: { planName: string; discountEventId?: string },
-    @Req() req: any,
-  ) {
-    return this.subscriptionsService.create({
-      userId: req.user.id,
-      planName: data.planName,
-      discountEventId: data.discountEventId,
-    });
-  }
-
-  /**
-   * Get user's own subscriptions
-   */
-  @Get('my')
-  @UseGuards(JwtAuthGuard)
-  async getMySubscriptions(@Req() req: any) {
-    return this.subscriptionsService.getUserSubscriptions(req.user.id);
-  }
-
-  /**
-   * Get user's active subscription
-   */
-  @Get('my/active')
-  @UseGuards(JwtAuthGuard)
-  async getMyActiveSubscription(@Req() req: any) {
-    return this.subscriptionsService.getActiveSubscription(req.user.id);
-  }
-
-  /**
-   * Get all subscriptions (admin only)
+   * List subscriptions with filters (Admin only)
    */
   @Get()
   @UseGuards(JwtAuthGuard, AdminRoleGuard, PermissionGuard)
-  @RequirePermission('subscriptions.approve')
+  @RequirePermission('subscriptions.manage')
   async findAll(
     @Query('userId') userId?: string,
+    @Query('expertId') expertId?: string,
     @Query('status') status?: SubscriptionStatus,
+    @Query('roomType') roomType?: RoomType,
     @Query('search') search?: string,
     @Query('skip') skip?: string,
     @Query('take') take?: string,
   ) {
-    const params: any = { userId, status, search };
+    const params: any = {
+      userId,
+      expertId,
+      status,
+      roomType,
+      search,
+    };
 
     if (skip) params.skip = parseInt(skip, 10);
     if (take) params.take = parseInt(take, 10);
@@ -79,172 +49,121 @@ export class SubscriptionsController {
   }
 
   /**
-   * Get subscription by ID
+   * Create subscription (Admin only)
    */
-  @Get(':id')
-  @UseGuards(JwtAuthGuard)
-  async findOne(@Param('id') id: string, @Req() req: any) {
-    const subscription = await this.subscriptionsService.findById(id);
-
-    // Check if user is owner or admin
-    const isAdmin = req.user.type === 'admin';
-    const isOwner = subscription?.userId === req.user.id;
-
-    if (!isAdmin && !isOwner) {
-      throw new Error('Unauthorized');
-    }
-
-    return subscription;
-  }
-
-  /**
-   * Approve subscription (admin only)
-   */
-  @Post(':id/approve')
+  @Post()
   @UseGuards(JwtAuthGuard, AdminRoleGuard, PermissionGuard)
-  @RequirePermission('subscriptions.approve')
-  async approve(
-    @Param('id') id: string,
-    @Body() data: { durationDays: number; adminMemo?: string },
+  @RequirePermission('subscriptions.manage')
+  async create(
+    @Body()
+    data: {
+      userId: string;
+      expertId: string;
+      roomType: RoomType;
+      durationMonths: number;
+      startDate: string;
+      depositName?: string;
+      depositAmount?: number;
+      adminMemo?: string;
+    },
     @Req() req: any,
   ) {
-    return this.subscriptionsService.approve(
-      id,
-      data.durationDays,
+    return this.subscriptionsService.createSubscription(
+      {
+        userId: data.userId,
+        expertId: data.expertId,
+        roomType: data.roomType,
+        durationMonths: data.durationMonths,
+        startDate: new Date(data.startDate),
+        depositName: data.depositName,
+        depositAmount: data.depositAmount,
+        adminMemo: data.adminMemo,
+      },
       req.user.id,
-      data.adminMemo,
     );
   }
 
   /**
-   * Reject subscription (admin only)
+   * Get subscription by ID (Admin only)
    */
-  @Post(':id/reject')
+  @Get(':id')
   @UseGuards(JwtAuthGuard, AdminRoleGuard, PermissionGuard)
-  @RequirePermission('subscriptions.approve')
-  async reject(
-    @Param('id') id: string,
-    @Body('adminMemo') adminMemo?: string,
-    @Req() req: any,
-  ) {
-    return this.subscriptionsService.reject(id, req.user.id, adminMemo);
+  @RequirePermission('subscriptions.manage')
+  async findOne(@Param('id') id: string) {
+    return this.subscriptionsService.findById(id);
   }
 
   /**
-   * Update subscription (admin only)
+   * Cancel subscription (Admin only)
    */
-  @Put(':id')
+  @Post(':id/cancel')
   @UseGuards(JwtAuthGuard, AdminRoleGuard, PermissionGuard)
-  @RequirePermission('subscriptions.approve')
-  async update(
+  @RequirePermission('subscriptions.manage')
+  async cancel(
     @Param('id') id: string,
-    @Body() data: any,
-    @Req() req: any,
+    @Body('reason') reason?: string,
+    @Req() req?: any,
   ) {
-    if (data.startAt) data.startAt = new Date(data.startAt);
-    if (data.endAt) data.endAt = new Date(data.endAt);
-
-    return this.subscriptionsService.update(id, data, req.user.id);
+    return this.subscriptionsService.cancelSubscription(
+      id,
+      req.user.id,
+      reason,
+    );
   }
 
   /**
-   * Get subscription stats
+   * Extend subscription duration (Admin only)
+   */
+  @Post(':id/extend')
+  @UseGuards(JwtAuthGuard, AdminRoleGuard, PermissionGuard)
+  @RequirePermission('subscriptions.manage')
+  async extend(
+    @Param('id') id: string,
+    @Body('additionalMonths') additionalMonths: number,
+    @Req() req: any,
+  ) {
+    return this.subscriptionsService.extendSubscription(
+      id,
+      additionalMonths,
+      req.user.id,
+    );
+  }
+
+  /**
+   * Convert VIP/VVIP (Admin only)
+   */
+  @Post(':id/convert')
+  @UseGuards(JwtAuthGuard, AdminRoleGuard, PermissionGuard)
+  @RequirePermission('subscriptions.manage')
+  async convert(
+    @Param('id') id: string,
+    @Body('newRoomType') newRoomType: RoomType,
+    @Req() req: any,
+  ) {
+    return this.subscriptionsService.convertSubscription(
+      id,
+      newRoomType,
+      req.user.id,
+    );
+  }
+
+  /**
+   * Get subscription statistics (Admin only)
    */
   @Get('stats/overview')
-  @UseGuards(JwtAuthGuard, AdminRoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard, PermissionGuard)
+  @RequirePermission('subscriptions.manage')
   async getStats() {
     return this.subscriptionsService.getStats();
   }
 
-  // ==================== DISCOUNT EVENTS ====================
-
   /**
-   * Get active discount events (public)
+   * Get user's subscription history (Admin only)
    */
-  @Get('discount-events/active')
-  async getActiveDiscountEvents() {
-    return this.subscriptionsService.getActiveDiscountEvents();
-  }
-
-  /**
-   * Get all discount events (admin only)
-   */
-  @Get('discount-events/all')
+  @Get('users/:userId/subscriptions')
   @UseGuards(JwtAuthGuard, AdminRoleGuard, PermissionGuard)
-  @RequirePermission('subscriptions.approve')
-  async getDiscountEvents(
-    @Query('skip') skip?: string,
-    @Query('take') take?: string,
-  ) {
-    const params: any = {};
-
-    if (skip) params.skip = parseInt(skip, 10);
-    if (take) params.take = parseInt(take, 10);
-
-    return this.subscriptionsService.getDiscountEvents(params);
-  }
-
-  /**
-   * Get discount event by ID
-   */
-  @Get('discount-events/:id')
-  @UseGuards(JwtAuthGuard, AdminRoleGuard, PermissionGuard)
-  @RequirePermission('subscriptions.approve')
-  async getDiscountEventById(@Param('id') id: string) {
-    return this.subscriptionsService.getDiscountEventById(id);
-  }
-
-  /**
-   * Create discount event (admin only)
-   */
-  @Post('discount-events')
-  @UseGuards(JwtAuthGuard, AdminRoleGuard, PermissionGuard)
-  @RequirePermission('subscriptions.approve')
-  async createDiscountEvent(
-    @Body()
-    data: {
-      name: string;
-      discountRate: number;
-      startAt: string;
-      endAt: string;
-    },
-  ) {
-    return this.subscriptionsService.createDiscountEvent({
-      ...data,
-      startAt: new Date(data.startAt),
-      endAt: new Date(data.endAt),
-    });
-  }
-
-  /**
-   * Update discount event (admin only)
-   */
-  @Put('discount-events/:id')
-  @UseGuards(JwtAuthGuard, AdminRoleGuard, PermissionGuard)
-  @RequirePermission('subscriptions.approve')
-  async updateDiscountEvent(
-    @Param('id') id: string,
-    @Body() data: any,
-    @Req() req: any,
-  ) {
-    if (data.startAt) data.startAt = new Date(data.startAt);
-    if (data.endAt) data.endAt = new Date(data.endAt);
-
-    return this.subscriptionsService.updateDiscountEvent(
-      id,
-      data,
-      req.user.id,
-    );
-  }
-
-  /**
-   * Delete discount event (admin only)
-   */
-  @Delete('discount-events/:id')
-  @UseGuards(JwtAuthGuard, AdminRoleGuard, PermissionGuard)
-  @RequirePermission('subscriptions.approve')
-  async deleteDiscountEvent(@Param('id') id: string, @Req() req: any) {
-    await this.subscriptionsService.deleteDiscountEvent(id, req.user.id);
-    return { success: true };
+  @RequirePermission('subscriptions.manage')
+  async getUserSubscriptions(@Param('userId') userId: string) {
+    return this.subscriptionsService.findByUserId(userId);
   }
 }

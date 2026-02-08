@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { v4 as uuidv4 } from 'uuid';
+import type { Multer } from 'multer';
 
 @Injectable()
 export class FilesService {
@@ -19,7 +20,7 @@ export class FilesService {
     this.bucketName = this.configService.get<string>('AWS_S3_BUCKET', 'daehanpns-files');
   }
 
-  async uploadFile(file: Express.Multer.File, folder: string = 'uploads'): Promise<string> {
+  async uploadFile(file: Multer.File, folder: string = 'uploads'): Promise<string> {
     const fileExtension = file.originalname.split('.').pop();
     const fileName = `${folder}/${uuidv4()}.${fileExtension}`;
 
@@ -50,11 +51,11 @@ export class FilesService {
     }
   }
 
-  validateFileType(file: Express.Multer.File, allowedTypes: string[]): boolean {
+  validateFileType(file: Multer.File, allowedTypes: string[]): boolean {
     return allowedTypes.includes(file.mimetype);
   }
 
-  validateFileSize(file: Express.Multer.File, maxSize: number): boolean {
+  validateFileSize(file: Multer.File, maxSize: number): boolean {
     return file.size <= maxSize;
   }
 }

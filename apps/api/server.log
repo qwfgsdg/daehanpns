@@ -1,0 +1,155 @@
+
+> @daehanpns/api@1.0.0 start:dev
+> ts-node src/main.ts
+
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[NestFactory] [39m[32mStarting Nest application...[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAppModule dependencies initialized[39m[38;5;3m +19ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mPrismaModule dependencies initialized[39m[38;5;3m +15ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mPassportModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mThrottlerModule dependencies initialized[39m[38;5;3m +12ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mConfigHostModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mConfigModule dependencies initialized[39m[38;5;3m +3ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mConfigModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mRedisModule dependencies initialized[39m[38;5;3m +7ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mFilesModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mJwtModule dependencies initialized[39m[38;5;3m +1ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mLogsModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mDashboardModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mBannersModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mPopupsModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAppVersionsModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mUsersModule dependencies initialized[39m[38;5;3m +1ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mExpertsModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mSubscriptionsModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mChatsModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAdminsModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAuthModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mLogsController {/api/logs}:[39m[38;5;3m +195ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/logs, GET} route[39m[38;5;3m +2ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/logs/actions, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/logs/stats, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/logs/export, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mAuthController {/api/auth}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/auth/admin/login, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/auth/admin/me, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/auth/user/register, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/auth/user/login, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/auth/sms/send, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/auth/sms/verify, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/auth/validate-referral-code, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/auth/search-managers, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/auth/check-duplicate, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/auth/google, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/auth/google/callback, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/auth/kakao, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/auth/kakao/callback, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/auth/social/complete, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mUsersController {/api/users}:[39m[38;5;3m +1ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users/:id, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users/:id, PUT} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users/:id/ban, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users/:id/unban, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users/:id, DELETE} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users/:id/member-type, PUT} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users/:id/show-coin-rooms, PUT} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users/:id/member-type-history, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users/:id/manager, PUT} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users/:id/manager-history, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users/manager/:managerId/stats, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users/:id/memos, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users/:id/memos, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users/memos/:memoId, PUT} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users/memos/:memoId, DELETE} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users/export/excel, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users/:id/profile-image-upload-url, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users/inactive/list, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mDashboardController {/api/dashboard}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/dashboard/stats, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/dashboard/online-users, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/dashboard/new-users, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/dashboard/registration-trend, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mAdminsController {/api/admins}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/admins, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/admins/:id, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/admins, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/admins/:id, PUT} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/admins/:id/password, PUT} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/admins/:id/unlock, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/admins/:id/permissions, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/admins/:id/permissions/:permission, PUT} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/admins/:id/invite-link, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/admins/temp-account, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/admins/:id/logo, PUT} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/admins/:id, DELETE} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mDashboardController {/api/dashboard}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/dashboard/stats, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/dashboard/user-trend, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/dashboard/chat-activity, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/dashboard/recent-reports, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mExpertsController {/api/experts}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/experts, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/experts/:id, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/experts/:id/stats, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/experts, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/experts/:id, PUT} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/experts/:id, DELETE} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mSubscriptionsController {/api/subscriptions}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/subscriptions, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/subscriptions, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/subscriptions/:id, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/subscriptions/:id/cancel, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/subscriptions/:id/extend, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/subscriptions/:id/convert, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/subscriptions/stats/overview, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/subscriptions/users/:userId/subscriptions, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mChatsController {/api/chats}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/chats, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/chats, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/chats/:id, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/chats/:id, PUT} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/chats/:id/deactivate, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/chats/:id/activate, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/chats/:id, DELETE} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/chats/stats/overview, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/chats/:roomId/participants, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/chats/:roomId/participants, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/chats/:roomId/participants/:userId/role, PUT} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/chats/:roomId/participants/:userId/kick, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/chats/:roomId/participants/:userId/unkick, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/chats/:roomId/participants/:userId/shadow-ban, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/chats/:roomId/participants/:userId/unshadow-ban, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/chats/:roomId/messages, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/chats/:roomId/messages/:messageId, DELETE} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/chats/:roomId/messages/bulk-delete, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/chats/:roomId/pinned-messages, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/chats/:roomId/messages/:messageId/pin, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/chats/:roomId/pinned-messages/:pinnedMessageId, DELETE} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mBannersController {/api/banners}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/banners, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/banners, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/banners/:id, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/banners/:id, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/banners/:id, DELETE} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/banners/:id/order, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/banners/:id/toggle, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mPopupsController {/api/popups}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/popups, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/popups, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/popups/active, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/popups/:id, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/popups/:id, PATCH} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/popups/:id, DELETE} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/popups/:id/toggle, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mAppVersionsController {/api/app-versions}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/app-versions, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/app-versions, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/app-versions/latest/:platform, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/app-versions/check/:platform, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/app-versions/:id, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/app-versions/:id, PATCH} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/app-versions/:id, DELETE} route[39m[38;5;3m +0ms[39m
+[Redis] Failed to connect, continuing without Redis
+[32m[Nest] 23512  - [39m2026. 02. 08. 오후 7:30:50 [32m    LOG[39m [38;5;3m[NestApplication] [39m[32mNest application successfully started[39m[38;5;3m +149ms[39m
+Application is running on: http://localhost:4000/api
+[Redis] Connection error (will continue without Redis): Reached the max retries per request limit (which is 1). Refer to "maxRetriesPerRequest" option for details.

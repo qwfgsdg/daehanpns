@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { RedisService } from '../redis/redis.service';
+import { PrismaService } from '../modules/prisma/prisma.service';
+import { RedisService } from '../modules/redis/redis.service';
 import {
   Notification,
   NotificationSetting,
@@ -122,17 +122,19 @@ export class NotificationsService implements OnModuleInit {
   async createNotification(data: {
     userId: string;
     type: NotificationType;
+    category: NotifCategory;
     title: string;
     body: string;
-    roomId?: string;
+    data?: any;
   }): Promise<Notification> {
     return this.prisma.notification.create({
       data: {
         userId: data.userId,
         type: data.type,
+        category: data.category,
         title: data.title,
         body: data.body,
-        roomId: data.roomId,
+        data: data.data,
       },
     });
   }
@@ -216,14 +218,14 @@ export class NotificationsService implements OnModuleInit {
   async updateSetting(
     userId: string,
     category: NotifCategory,
-    enabled: boolean,
+    isEnabled: boolean,
   ): Promise<NotificationSetting> {
     return this.prisma.notificationSetting.upsert({
       where: {
         userId_category: { userId, category },
       },
-      update: { enabled },
-      create: { userId, category, enabled },
+      update: { isEnabled },
+      create: { userId, category, isEnabled },
     });
   }
 
@@ -241,14 +243,19 @@ export class NotificationsService implements OnModuleInit {
     });
 
     // Default to enabled if no setting exists
-    return setting?.enabled !== false;
+    return setting?.isEnabled !== false;
   }
 
   /**
    * Initialize default settings for user
    */
   async initializeSettings(userId: string): Promise<void> {
-    const categories: NotifCategory[] = ['CHAT', 'ANNOUNCEMENT', 'COMMUNITY'];
+    const categories: NotifCategory[] = [
+      'CHAT_MESSAGE',
+      'CHAT_ROOM_INVITE',
+      'SUBSCRIPTION_APPROVED',
+      'SYSTEM_NOTICE',
+    ];
 
     await Promise.all(
       categories.map((category) =>
@@ -257,7 +264,7 @@ export class NotificationsService implements OnModuleInit {
             userId_category: { userId, category },
           },
           update: {},
-          create: { userId, category, enabled: true },
+          create: { userId, category, isEnabled: true },
         }),
       ),
     );
@@ -272,7 +279,7 @@ export class NotificationsService implements OnModuleInit {
     category: NotifCategory;
     title: string;
     body: string;
-    roomId?: string;
+    additionalData?: any;
   }): Promise<void> {
     // Check if user has this category enabled
     const isEnabled = await this.isNotificationEnabled(
@@ -288,9 +295,10 @@ export class NotificationsService implements OnModuleInit {
     await this.createNotification({
       userId: data.userId,
       type: data.type,
+      category: data.category,
       title: data.title,
       body: data.body,
-      roomId: data.roomId,
+      data: data.additionalData,
     });
 
     // Send push notification
@@ -299,7 +307,7 @@ export class NotificationsService implements OnModuleInit {
       body: data.body,
       data: {
         type: data.type,
-        roomId: data.roomId || '',
+        ...(data.additionalData || {}),
       },
     });
   }

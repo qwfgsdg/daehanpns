@@ -1,8 +1,8 @@
 import { Module, Global } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { NotificationsController } from './notifications.controller';
-import { PrismaModule } from '../prisma/prisma.module';
-import { RedisModule } from '../redis/redis.module';
+import { PrismaModule } from '../modules/prisma/prisma.module';
+import { RedisModule } from '../modules/redis/redis.module';
 
 @Global()
 @Module({
