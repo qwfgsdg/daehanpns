@@ -460,6 +460,9 @@ export class ApiClient {
     roomType: string;
     durationMonths: number;
     startDate: string;
+    depositName?: string;
+    depositAmount?: number;
+    adminMemo?: string;
   }) {
     return this.request<any>('/subscriptions', {
       method: 'POST',
