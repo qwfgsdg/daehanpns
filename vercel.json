@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build --workspace=@daehanpns/admin",
+  "outputDirectory": "apps/admin/.next",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "rewrites": [
+    {
+      "source": "/:path*",
+      "destination": "/apps/admin/:path*"
+    }
+  ]
+}
