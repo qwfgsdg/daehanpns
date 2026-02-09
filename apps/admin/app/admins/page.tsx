@@ -836,7 +836,14 @@ function CreateAdminModal({
 
     setIsSubmitting(true);
     try {
-      await ApiClient.createAdmin(formData);
+      await ApiClient.createAdmin({
+        loginId: formData.loginId,
+        email: formData.email,
+        password: formData.password,
+        name: formData.realName, // realName을 name으로 매핑
+        tier: formData.tier,
+        region: formData.region,
+      });
       alert('관리자가 추가되었습니다.');
       onSuccess();
     } catch (error) {
