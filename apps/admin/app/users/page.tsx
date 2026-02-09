@@ -64,7 +64,7 @@ export default function UsersPage() {
       if (user.isBanned) {
         await ApiClient.unbanUser(user.id);
       } else {
-        await ApiClient.banUser(user.id, reason);
+        await ApiClient.banUser(user.id, reason || '사유 없음');
       }
       alert(`${action}되었습니다.`);
       loadUsers();

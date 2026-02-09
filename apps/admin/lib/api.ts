@@ -107,10 +107,10 @@ export class ApiClient {
     });
   }
 
-  static async banUser(id: string, reason: string) {
+  static async banUser(id: string, reason?: string) {
     return this.request<any>(`/users/${id}/ban`, {
       method: 'POST',
-      body: JSON.stringify({ reason }),
+      body: JSON.stringify({ reason: reason || '사유 없음' }),
     });
   }
 
@@ -272,7 +272,14 @@ export class ApiClient {
     });
   }
 
-  static async updateAdmin(id: string, data: any) {
+  static async updateAdmin(id: string, data: {
+    email?: string;
+    realName?: string;
+    salesName?: string;
+    tier?: string;
+    region?: string;
+    logoUrl?: string;
+  }) {
     return this.request<any>(`/admins/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),

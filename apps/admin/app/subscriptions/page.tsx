@@ -198,7 +198,9 @@ export default function SubscriptionsPage() {
     try {
       await ApiClient.createSubscription({
         ...createForm,
-        depositAmount: createForm.depositAmount ? parseInt(createForm.depositAmount) : undefined,
+        depositAmount: createForm.depositAmount && createForm.depositAmount.trim()
+          ? parseInt(createForm.depositAmount, 10)
+          : undefined,
       });
       alert('구독이 추가되었습니다.');
       setShowCreateModal(false);
