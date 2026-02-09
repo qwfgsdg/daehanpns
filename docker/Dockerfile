@@ -41,8 +41,5 @@ EXPOSE 3000
 # Start the application
 WORKDIR /app/apps/api
 
-# Copy env check script
-COPY --from=builder /app/apps/api/check-env.js ./check-env.js
-
-# Start with environment check (removed healthcheck temporarily for debugging)
-CMD ["sh", "-c", "echo '=== STARTING APPLICATION ===' && node check-env.js 2>&1 && echo '=== STARTING NESTJS ===' && node dist/apps/api/src/main.js 2>&1"]
+# Start the application (debug output is in main.ts)
+CMD ["node", "dist/apps/api/src/main.js"]
