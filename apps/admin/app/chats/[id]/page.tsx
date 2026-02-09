@@ -59,7 +59,7 @@ export default function ChatDetailPage() {
 
   // 무한 스크롤 ref
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const observer = useRef<IntersectionObserver>();
+  const observer = useRef<IntersectionObserver | null>(null);
 
   const lastMessageElementRef = useCallback((node: HTMLDivElement) => {
     if (observer.current) observer.current.disconnect();
