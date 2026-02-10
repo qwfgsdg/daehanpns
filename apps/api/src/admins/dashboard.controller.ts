@@ -21,8 +21,10 @@ export class DashboardController {
     const cacheKey = 'dashboard:stats';
     const cached = await this.redis.get(cacheKey);
     if (cached) {
+      console.log('[Dashboard] Cache HIT - returning cached stats');
       return JSON.parse(cached);
     }
+    console.log('[Dashboard] Cache MISS - fetching from database');
 
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -116,6 +118,7 @@ export class DashboardController {
 
     // Cache for 5 minutes
     await this.redis.set(cacheKey, JSON.stringify(result), 300);
+    console.log('[Dashboard] Stats cached successfully (TTL: 300s)');
 
     return result;
   }

@@ -61,24 +61,35 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   async get(key: string): Promise<string | null> {
-    if (!this.isConnected()) return null;
+    if (!this.isConnected()) {
+      console.log('[Redis] Not connected - cannot get key:', key);
+      return null;
+    }
     try {
-      return await this.client.get(key);
+      const value = await this.client.get(key);
+      console.log(`[Redis] GET ${key}:`, value ? 'FOUND' : 'NOT FOUND');
+      return value;
     } catch (error) {
+      console.error('[Redis] GET error:', error.message);
       return null;
     }
   }
 
   async set(key: string, value: string, ttl?: number): Promise<void> {
-    if (!this.isConnected()) return;
+    if (!this.isConnected()) {
+      console.log('[Redis] Not connected - cannot set key:', key);
+      return;
+    }
     try {
       if (ttl) {
         await this.client.setex(key, ttl, value);
+        console.log(`[Redis] SET ${key} with TTL ${ttl}s: SUCCESS`);
       } else {
         await this.client.set(key, value);
+        console.log(`[Redis] SET ${key}: SUCCESS`);
       }
     } catch (error) {
-      // Silent fail
+      console.error('[Redis] SET error:', error.message);
     }
   }
 
