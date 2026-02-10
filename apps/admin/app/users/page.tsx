@@ -67,7 +67,15 @@ export default function UsersPage() {
         await ApiClient.banUser(user.id, reason || '사유 없음');
       }
       alert(`${action}되었습니다.`);
-      loadUsers();
+
+      // Update local state instead of reloading all users
+      setUsers(prevUsers =>
+        prevUsers.map(u =>
+          u.id === user.id
+            ? { ...u, isBanned: !u.isBanned }
+            : u
+        )
+      );
     } catch (error) {
       console.error('Failed to toggle ban:', error);
       alert(`${action}에 실패했습니다.`);
@@ -82,7 +90,10 @@ export default function UsersPage() {
     try {
       await ApiClient.deleteUser(user.id);
       alert('삭제되었습니다.');
-      loadUsers();
+
+      // Remove from local state instead of reloading all users
+      setUsers(prevUsers => prevUsers.filter(u => u.id !== user.id));
+      setTotal(prevTotal => prevTotal - 1);
     } catch (error) {
       console.error('Failed to delete user:', error);
       alert('삭제에 실패했습니다.');

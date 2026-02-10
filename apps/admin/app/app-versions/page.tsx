@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { ApiClient } from '@/lib/api';
-import { PermissionHelper, AdminUser, PERMISSIONS } from '@/lib/permissions';
+import { PermissionHelper, PERMISSIONS } from '@/lib/permissions';
 import { Button } from '@/components/ui/button';
+import { useAdmin } from '@/contexts/AdminContext';
 
 interface AppVersion {
   id: string;
@@ -20,7 +21,7 @@ interface AppVersion {
 
 export default function AppVersionsPage() {
   const router = useRouter();
-  const [admin, setAdmin] = useState<AdminUser | null>(null);
+  const { admin, isLoading: adminLoading } = useAdmin();
   const [hasPermission, setHasPermission] = useState(false);
   const [versions, setVersions] = useState<AppVersion[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,37 +38,26 @@ export default function AppVersionsPage() {
   });
 
   useEffect(() => {
-    checkPermissionAndLoad();
-  }, [router]);
+    if (!auth.isAuthenticated()) {
+      router.push('/login');
+      return;
+    }
+
+    if (admin) {
+      const canAccess = PermissionHelper.hasPermission(admin, PERMISSIONS.APP_VERSIONS_MANAGE);
+      setHasPermission(canAccess);
+
+      if (!canAccess) {
+        setLoading(false);
+      }
+    }
+  }, [admin, router]);
 
   useEffect(() => {
     if (hasPermission) {
       fetchVersions();
     }
   }, [hasPermission]);
-
-  const checkPermissionAndLoad = async () => {
-    if (!auth.isAuthenticated()) {
-      router.push('/login');
-      return;
-    }
-
-    try {
-      const adminData = await ApiClient.getCurrentAdmin();
-      setAdmin(adminData);
-
-      const canAccess = PermissionHelper.hasPermission(adminData, PERMISSIONS.APP_VERSIONS_MANAGE);
-      setHasPermission(canAccess);
-
-      if (!canAccess) {
-        setLoading(false);
-      }
-    } catch (error) {
-      console.error('Failed to load admin data:', error);
-      auth.removeToken();
-      router.push('/login');
-    }
-  };
 
   const fetchVersions = async () => {
     try {

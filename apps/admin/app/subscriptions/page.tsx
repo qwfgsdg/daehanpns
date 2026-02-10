@@ -6,7 +6,8 @@ import { auth } from '@/lib/auth';
 import { ApiClient } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { PermissionHelper, AdminUser, PERMISSIONS } from '@/lib/permissions';
+import { PermissionHelper, PERMISSIONS } from '@/lib/permissions';
+import { useAdmin } from '@/contexts/AdminContext';
 
 interface Subscription {
   id: string;
@@ -50,7 +51,7 @@ interface CreateFormData {
 
 export default function SubscriptionsPage() {
   const router = useRouter();
-  const [admin, setAdmin] = useState<AdminUser | null>(null);
+  const { admin, isLoading: adminLoading } = useAdmin();
   const [hasPermission, setHasPermission] = useState(false);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [total, setTotal] = useState(0);
@@ -79,42 +80,42 @@ export default function SubscriptionsPage() {
     adminMemo: '',
   });
 
+  // Check permission and load initial data when admin is loaded
   useEffect(() => {
-    checkPermissionAndLoad();
-  }, [router]);
-
-  useEffect(() => {
-    if (hasPermission) {
-      loadSubscriptions();
-    }
-  }, [page, hasPermission]);
-
-  useEffect(() => {
-    if (hasPermission) {
-      loadExperts();
-    }
-  }, [hasPermission]);
-
-  const checkPermissionAndLoad = async () => {
     if (!auth.isAuthenticated()) {
       router.push('/login');
       return;
     }
 
-    try {
-      const adminData = await ApiClient.getCurrentAdmin();
-      setAdmin(adminData);
-
-      const canAccess = PermissionHelper.hasPermission(adminData, PERMISSIONS.SUBSCRIPTIONS_MANAGE);
+    if (admin) {
+      const canAccess = PermissionHelper.hasPermission(admin, PERMISSIONS.SUBSCRIPTIONS_MANAGE);
       setHasPermission(canAccess);
 
       if (!canAccess) {
         setIsLoading(false);
+      } else {
+        // Load initial data in parallel
+        loadInitialData();
       }
+    }
+  }, [admin, router]);
+
+  // Reload subscriptions when filters or search change
+  useEffect(() => {
+    if (hasPermission) {
+      loadSubscriptions();
+    }
+  }, [page, search, expertFilter, statusFilter, hasPermission]);
+
+  const loadInitialData = async () => {
+    try {
+      // Load subscriptions and experts in parallel
+      await Promise.all([
+        loadSubscriptions(),
+        loadExperts(),
+      ]);
     } catch (error) {
-      console.error('Failed to load admin data:', error);
-      auth.removeToken();
-      router.push('/login');
+      console.error('Failed to load initial data:', error);
     }
   };
 
@@ -122,22 +123,14 @@ export default function SubscriptionsPage() {
     setIsLoading(true);
     try {
       const response = await ApiClient.getSubscriptions({
+        search: search || undefined,
         expertId: expertFilter || undefined,
         status: statusFilter || undefined,
         skip: (page - 1) * pageSize,
         take: pageSize,
       });
 
-      // Apply client-side search filter for user name/phone
-      let filtered = response.subscriptions;
-      if (search) {
-        filtered = filtered.filter(sub =>
-          sub.user.name.toLowerCase().includes(search.toLowerCase()) ||
-          sub.user.phone.includes(search)
-        );
-      }
-
-      setSubscriptions(filtered);
+      setSubscriptions(response.subscriptions);
       setTotal(response.total);
     } catch (error) {
       console.error('Failed to load subscriptions:', error);
@@ -173,7 +166,7 @@ export default function SubscriptionsPage() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1);
-    loadSubscriptions();
+    // loadSubscriptions will be called automatically by useEffect when page changes
   };
 
   const openDetailModal = async (subscription: Subscription) => {
@@ -226,10 +219,18 @@ export default function SubscriptionsPage() {
     if (!confirm('이 구독을 취소하시겠습니까?')) return;
 
     try {
-      await ApiClient.cancelSubscription(selectedSubscription.id);
+      const updated = await ApiClient.cancelSubscription(selectedSubscription.id);
       alert('구독이 취소되었습니다.');
       setShowDetailModal(false);
-      loadSubscriptions();
+
+      // Update local state instead of reloading all subscriptions
+      setSubscriptions(prevSubs =>
+        prevSubs.map(sub =>
+          sub.id === selectedSubscription.id
+            ? { ...sub, status: 'CANCELLED' as const }
+            : sub
+        )
+      );
     } catch (error) {
       console.error('Failed to cancel subscription:', error);
       alert('구독 취소에 실패했습니다.');
@@ -244,10 +245,23 @@ export default function SubscriptionsPage() {
     }
 
     try {
-      await ApiClient.extendSubscription(selectedSubscription.id, extendMonths);
+      const updated = await ApiClient.extendSubscription(selectedSubscription.id, extendMonths);
       alert(`구독이 ${extendMonths}개월 연장되었습니다.`);
       setShowDetailModal(false);
-      loadSubscriptions();
+
+      // Update local state with new end date
+      if (updated) {
+        setSubscriptions(prevSubs =>
+          prevSubs.map(sub =>
+            sub.id === selectedSubscription.id
+              ? { ...sub, endDate: updated.endDate }
+              : sub
+          )
+        );
+      } else {
+        // Fallback: reload if API doesn't return updated data
+        loadSubscriptions();
+      }
     } catch (error) {
       console.error('Failed to extend subscription:', error);
       alert('구독 연장에 실패했습니다.');
@@ -263,7 +277,15 @@ export default function SubscriptionsPage() {
       await ApiClient.convertSubscription(selectedSubscription.id, newRoomType);
       alert('구독이 전환되었습니다.');
       setShowDetailModal(false);
-      loadSubscriptions();
+
+      // Update local state with new room type
+      setSubscriptions(prevSubs =>
+        prevSubs.map(sub =>
+          sub.id === selectedSubscription.id
+            ? { ...sub, roomType: newRoomType }
+            : sub
+        )
+      );
     } catch (error) {
       console.error('Failed to convert subscription:', error);
       alert('구독 전환에 실패했습니다.');
@@ -313,7 +335,7 @@ export default function SubscriptionsPage() {
 
   const totalPages = Math.ceil(total / pageSize);
 
-  if (isLoading) {
+  if (adminLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">

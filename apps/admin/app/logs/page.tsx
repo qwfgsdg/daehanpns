@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { ApiClient } from '@/lib/api';
-import { PermissionHelper, AdminUser, PERMISSIONS } from '@/lib/permissions';
+import { PermissionHelper, PERMISSIONS } from '@/lib/permissions';
 import { Button } from '@/components/ui/button';
+import { useAdmin } from '@/contexts/AdminContext';
 
 interface Log {
   id: string;
@@ -46,7 +47,7 @@ interface Stats {
 
 export default function LogsPage() {
   const router = useRouter();
-  const [admin, setAdmin] = useState<AdminUser | null>(null);
+  const { admin, isLoading: adminLoading } = useAdmin();
   const [hasPermission, setHasPermission] = useState(false);
   const [logs, setLogs] = useState<Log[]>([]);
   const [total, setTotal] = useState(0);
@@ -68,45 +69,45 @@ export default function LogsPage() {
   const [stats, setStats] = useState<Stats | null>(null);
 
   useEffect(() => {
-    checkPermissionAndLoad();
-  }, [router]);
-
-  useEffect(() => {
-    if (hasPermission) {
-      fetchAdmins();
-      fetchActions();
-      fetchStats();
+    if (!auth.isAuthenticated()) {
+      router.push('/login');
+      return;
     }
-  }, [hasPermission]);
 
+    if (admin) {
+      const canAccess = PermissionHelper.hasPermission(admin, PERMISSIONS.LOGS_VIEW);
+      setHasPermission(canAccess);
+
+      if (!canAccess) {
+        setLoading(false);
+      } else {
+        // Load initial data in parallel
+        loadInitialData();
+      }
+    }
+  }, [admin, router]);
+
+  // Reload logs when filters change
   useEffect(() => {
     if (hasPermission) {
       fetchLogs();
     }
   }, [page, adminId, action, startDate, endDate, hasPermission]);
 
-  const checkPermissionAndLoad = async () => {
-    if (!auth.isAuthenticated()) {
-      router.push('/login');
-      return;
-    }
-
+  const loadInitialData = async () => {
     try {
-      const adminData = await ApiClient.getCurrentAdmin();
-      setAdmin(adminData);
-
-      const canAccess = PermissionHelper.hasPermission(adminData, PERMISSIONS.LOGS_VIEW);
-      setHasPermission(canAccess);
-
-      if (!canAccess) {
-        setLoading(false);
-      }
+      // Load all filter data and initial logs in parallel
+      await Promise.all([
+        fetchAdmins(),
+        fetchActions(),
+        fetchStats(),
+        fetchLogs(),
+      ]);
     } catch (error) {
-      console.error('Failed to load admin data:', error);
-      auth.removeToken();
-      router.push('/login');
+      console.error('Failed to load initial data:', error);
     }
   };
+
 
   const fetchLogs = async () => {
     try {

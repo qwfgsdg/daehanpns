@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { ApiClient } from '@/lib/api';
-import { PermissionHelper, AdminUser, PERMISSIONS } from '@/lib/permissions';
+import { PermissionHelper, PERMISSIONS } from '@/lib/permissions';
 import { Button } from '@/components/ui/button';
+import { useAdmin } from '@/contexts/AdminContext';
 
 type Tab = 'banners' | 'popups';
 
@@ -36,7 +37,7 @@ interface Popup {
 
 export default function BannersPage() {
   const router = useRouter();
-  const [admin, setAdmin] = useState<AdminUser | null>(null);
+  const { admin, isLoading: adminLoading } = useAdmin();
   const [hasPermission, setHasPermission] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('banners');
   const [banners, setBanners] = useState<Banner[]>([]);
@@ -71,8 +72,20 @@ export default function BannersPage() {
   const [showPopupForm, setShowPopupForm] = useState(false);
 
   useEffect(() => {
-    checkPermissionAndLoad();
-  }, [router]);
+    if (!auth.isAuthenticated()) {
+      router.push('/login');
+      return;
+    }
+
+    if (admin) {
+      const canAccess = PermissionHelper.hasPermission(admin, PERMISSIONS.BANNERS_MANAGE);
+      setHasPermission(canAccess);
+
+      if (!canAccess) {
+        setLoading(false);
+      }
+    }
+  }, [admin, router]);
 
   useEffect(() => {
     if (hasPermission) {
@@ -84,28 +97,6 @@ export default function BannersPage() {
     }
   }, [activeTab, hasPermission]);
 
-  const checkPermissionAndLoad = async () => {
-    if (!auth.isAuthenticated()) {
-      router.push('/login');
-      return;
-    }
-
-    try {
-      const adminData = await ApiClient.getCurrentAdmin();
-      setAdmin(adminData);
-
-      const canAccess = PermissionHelper.hasPermission(adminData, PERMISSIONS.BANNERS_MANAGE);
-      setHasPermission(canAccess);
-
-      if (!canAccess) {
-        setLoading(false);
-      }
-    } catch (error) {
-      console.error('Failed to load admin data:', error);
-      auth.removeToken();
-      router.push('/login');
-    }
-  };
 
   const fetchBanners = async () => {
     try {

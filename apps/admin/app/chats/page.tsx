@@ -6,7 +6,8 @@ import { auth } from '@/lib/auth';
 import { ApiClient } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { PermissionHelper, AdminUser, PERMISSIONS } from '@/lib/permissions';
+import { PermissionHelper, PERMISSIONS } from '@/lib/permissions';
+import { useAdmin } from '@/contexts/AdminContext';
 
 interface ChatRoom {
   id: string;
@@ -33,7 +34,7 @@ interface Expert {
 
 export default function ChatsPage() {
   const router = useRouter();
-  const [admin, setAdmin] = useState<AdminUser | null>(null);
+  const { admin, isLoading: adminLoading } = useAdmin();
   const [hasPermission, setHasPermission] = useState(false);
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [total, setTotal] = useState(0);
@@ -57,42 +58,42 @@ export default function ChatsPage() {
     ownerId: '',
   });
 
+  // Check permission and load initial data when admin is loaded
   useEffect(() => {
-    checkPermissionAndLoad();
-  }, [router]);
+    if (!auth.isAuthenticated()) {
+      router.push('/login');
+      return;
+    }
 
+    if (admin) {
+      const canAccess = PermissionHelper.hasPermission(admin, PERMISSIONS.CHATS_MANAGE);
+      setHasPermission(canAccess);
+
+      if (!canAccess) {
+        setIsLoading(false);
+      } else {
+        // Load experts once when permission is granted
+        loadInitialData();
+      }
+    }
+  }, [admin, router]);
+
+  // Reload rooms when filters change
   useEffect(() => {
     if (hasPermission) {
       loadRooms();
     }
   }, [page, typeFilter, expertFilter, statusFilter, hasPermission]);
 
-  useEffect(() => {
-    if (hasPermission) {
-      loadExperts();
-    }
-  }, [hasPermission]);
-
-  const checkPermissionAndLoad = async () => {
-    if (!auth.isAuthenticated()) {
-      router.push('/login');
-      return;
-    }
-
+  const loadInitialData = async () => {
     try {
-      const adminData = await ApiClient.getCurrentAdmin();
-      setAdmin(adminData);
-
-      const canAccess = PermissionHelper.hasPermission(adminData, PERMISSIONS.CHATS_MANAGE);
-      setHasPermission(canAccess);
-
-      if (!canAccess) {
-        setIsLoading(false);
-      }
+      // Load rooms and experts in parallel
+      await Promise.all([
+        loadRooms(),
+        loadExperts(),
+      ]);
     } catch (error) {
-      console.error('Failed to load admin data:', error);
-      auth.removeToken();
-      router.push('/login');
+      console.error('Failed to load initial data:', error);
     }
   };
 
@@ -185,7 +186,15 @@ export default function ChatsPage() {
     try {
       await ApiClient.deleteChat(room.id, reason || undefined);
       alert('채팅방이 삭제되었습니다.');
-      loadRooms();
+
+      // Update local state to mark as inactive instead of reloading
+      setRooms(prevRooms =>
+        prevRooms.map(r =>
+          r.id === room.id
+            ? { ...r, isActive: false }
+            : r
+        )
+      );
     } catch (error: any) {
       console.error('Failed to delete chat:', error);
       alert(error.message || '삭제에 실패했습니다.');
@@ -213,7 +222,7 @@ export default function ChatsPage() {
 
   const totalPages = Math.ceil(total / pageSize);
 
-  if (isLoading) {
+  if (adminLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">

@@ -437,6 +437,7 @@ export class ApiClient {
     userId?: string;
     expertId?: string;
     status?: string;
+    search?: string;
     skip?: number;
     take?: number;
   }) {
@@ -444,6 +445,7 @@ export class ApiClient {
     if (params?.userId) queryParams.append('userId', params.userId);
     if (params?.expertId) queryParams.append('expertId', params.expertId);
     if (params?.status) queryParams.append('status', params.status);
+    if (params?.search) queryParams.append('search', params.search);
     if (params?.skip !== undefined) queryParams.append('skip', params.skip.toString());
     if (params?.take !== undefined) queryParams.append('take', params.take.toString());
 

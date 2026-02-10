@@ -78,8 +78,13 @@ export default function AdminDetailPage() {
 
   useEffect(() => {
     if (activeTab === 'members') {
-      loadMembers();
-      loadMemberStats();
+      // Load members and stats in parallel
+      Promise.all([
+        loadMembers(),
+        loadMemberStats(),
+      ]).catch(error => {
+        console.error('Failed to load member data:', error);
+      });
     }
   }, [activeTab, memberPage, memberSearch]);
 
@@ -128,7 +133,12 @@ export default function AdminDetailPage() {
       await ApiClient.updateAdmin(adminId, editForm);
       alert('정보가 수정되었습니다.');
       setIsEditMode(false);
-      loadAdmin();
+
+      // Update local state instead of reloading
+      setAdmin((prevAdmin: any) => ({
+        ...prevAdmin,
+        ...editForm,
+      }));
     } catch (error: any) {
       console.error('Failed to update admin:', error);
       alert(error.message || '수정에 실패했습니다.');

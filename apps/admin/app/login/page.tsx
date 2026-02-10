@@ -6,9 +6,11 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ApiClient } from '@/lib/api';
 import { auth } from '@/lib/auth';
+import { useAdmin } from '@/contexts/AdminContext';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { refreshAdmin } = useAdmin();
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -28,6 +30,10 @@ export default function LoginPage() {
     try {
       const response = await ApiClient.login(loginId, password);
       auth.setToken(response.accessToken);
+
+      // Context에 admin 정보 로드
+      await refreshAdmin();
+
       router.push('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : '로그인에 실패했습니다.');

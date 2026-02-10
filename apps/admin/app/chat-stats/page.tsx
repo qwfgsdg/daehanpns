@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { ApiClient } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { canAccessMenu, AdminUser } from '@/lib/permissions';
+import { canAccessMenu } from '@/lib/permissions';
+import { useAdmin } from '@/contexts/AdminContext';
 
 interface StatsSummary {
   totalMessages: number;
@@ -51,7 +52,7 @@ interface RoomStat {
 
 export default function ChatStatsPage() {
   const router = useRouter();
-  const [admin, setAdmin] = useState<AdminUser | null>(null);
+  const { admin, isLoading: adminLoading } = useAdmin();
   const [isLoading, setIsLoading] = useState(true);
 
   // 날짜 범위 (기본값: 최근 7일)
@@ -77,37 +78,25 @@ export default function ChatStatsPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'rooms'>('overview');
 
   useEffect(() => {
-    const checkAuth = async () => {
-      if (!auth.isAuthenticated()) {
-        router.push('/login');
-        return;
-      }
+    if (!auth.isAuthenticated()) {
+      router.push('/login');
+      return;
+    }
 
-      try {
-        const adminData = await ApiClient.getCurrentAdmin();
-        setAdmin(adminData);
+    if (admin) {
+      // 권한 체크 (대표관리자 이상만 접근 가능 - 임시로 모든 관리자 허용)
+      // TODO: 통계 권한 체크 로직 추가
 
-        // 권한 체크 (대표관리자 이상만 접근 가능 - 임시로 모든 관리자 허용)
-        // TODO: 통계 권한 체크 로직 추가
+      // 기본 날짜 설정 (최근 7일)
+      const end = new Date();
+      const start = new Date();
+      start.setDate(start.getDate() - 7);
 
-        // 기본 날짜 설정 (최근 7일)
-        const end = new Date();
-        const start = new Date();
-        start.setDate(start.getDate() - 7);
-
-        setEndDate(end.toISOString().split('T')[0]);
-        setStartDate(start.toISOString().split('T')[0]);
-      } catch (error) {
-        console.error('Failed to load admin data:', error);
-        auth.removeToken();
-        router.push('/login');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkAuth();
-  }, [router]);
+      setEndDate(end.toISOString().split('T')[0]);
+      setStartDate(start.toISOString().split('T')[0]);
+      setIsLoading(false);
+    }
+  }, [admin, router]);
 
   // 통계 데이터 로드
   useEffect(() => {

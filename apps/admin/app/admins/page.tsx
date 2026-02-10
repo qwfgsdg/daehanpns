@@ -6,11 +6,12 @@ import { auth } from '@/lib/auth';
 import { ApiClient } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { PermissionHelper, AdminUser, PERMISSIONS } from '@/lib/permissions';
+import { PermissionHelper, PERMISSIONS } from '@/lib/permissions';
+import { useAdmin } from '@/contexts/AdminContext';
 
 export default function AdminsPage() {
   const router = useRouter();
-  const [admin, setAdmin] = useState<AdminUser | null>(null);
+  const { admin, isLoading: adminLoading } = useAdmin();
   const [admins, setAdmins] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -32,38 +33,28 @@ export default function AdminsPage() {
   const [bulkTarget, setBulkTarget] = useState('');
   const pageSize = 20;
 
+  // Check permission when admin data is loaded
   useEffect(() => {
-    checkPermissionAndLoad();
-  }, [router]);
+    if (!auth.isAuthenticated()) {
+      router.push('/login');
+      return;
+    }
+
+    if (admin) {
+      const canAccess = PermissionHelper.hasPermission(admin, PERMISSIONS.ADMINS_MANAGE);
+      setHasPermission(canAccess);
+
+      if (!canAccess) {
+        setIsLoading(false);
+      }
+    }
+  }, [admin, router]);
 
   useEffect(() => {
     if (hasPermission) {
       loadAdmins();
     }
   }, [page, selectedTier, hasPermission]);
-
-  const checkPermissionAndLoad = async () => {
-    if (!auth.isAuthenticated()) {
-      router.push('/login');
-      return;
-    }
-
-    try {
-      const adminData = await ApiClient.getCurrentAdmin();
-      setAdmin(adminData);
-
-      const canAccess = PermissionHelper.hasPermission(adminData, PERMISSIONS.ADMINS_MANAGE);
-      setHasPermission(canAccess);
-
-      if (!canAccess) {
-        setIsLoading(false);
-      }
-    } catch (error) {
-      console.error('Failed to load admin data:', error);
-      auth.removeToken();
-      router.push('/login');
-    }
-  };
 
   const loadAdmins = async () => {
     setIsLoading(true);
@@ -148,7 +139,10 @@ export default function AdminsPage() {
 
         await ApiClient.deleteAdmin(targetAdmin.id);
         alert('삭제되었습니다.');
-        loadAdmins();
+
+        // Remove from local state instead of reloading
+        setAdmins(prevAdmins => prevAdmins.filter(a => a.id !== targetAdmin.id));
+        setTotal(prevTotal => prevTotal - 1);
       }
     } catch (error: any) {
       console.error('Failed to delete admin:', error);
@@ -229,7 +223,7 @@ export default function AdminsPage() {
 
   const totalPages = Math.ceil(total / pageSize);
 
-  if (isLoading) {
+  if (adminLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">

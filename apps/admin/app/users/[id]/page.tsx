@@ -6,14 +6,15 @@ import { auth } from '@/lib/auth';
 import { ApiClient } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { PermissionHelper, AdminUser, PERMISSIONS } from '@/lib/permissions';
+import { PermissionHelper, PERMISSIONS } from '@/lib/permissions';
+import { useAdmin } from '@/contexts/AdminContext';
 
 export default function UserDetailPage() {
   const router = useRouter();
   const params = useParams();
   const userId = params.id as string;
 
-  const [admin, setAdmin] = useState<AdminUser | null>(null);
+  const { admin, isLoading: adminLoading } = useAdmin();
   const [user, setUser] = useState<any>(null);
   const [memos, setMemos] = useState<any[]>([]);
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
@@ -45,15 +46,16 @@ export default function UserDetailPage() {
       router.push('/login');
       return;
     }
-    loadAdminAndData();
-  }, [userId, router]);
 
-  const loadAdminAndData = async () => {
+    // Load data when admin is available
+    if (admin) {
+      loadAllData();
+    }
+  }, [userId, admin, router]);
+
+  const loadAllData = async () => {
     setIsLoading(true);
     try {
-      const adminData = await ApiClient.getCurrentAdmin();
-      setAdmin(adminData);
-
       // Load all data in parallel for better performance
       const dataPromises = [
         loadUser(),
@@ -64,16 +66,14 @@ export default function UserDetailPage() {
       ];
 
       // Add subscriptions if has permission
-      if (PermissionHelper.hasPermission(adminData, PERMISSIONS.SUBSCRIPTIONS_MANAGE)) {
+      if (admin && PermissionHelper.hasPermission(admin, PERMISSIONS.SUBSCRIPTIONS_MANAGE)) {
         dataPromises.push(loadSubscriptions());
       }
 
       // Execute all requests in parallel
       await Promise.all(dataPromises);
     } catch (error) {
-      console.error('Failed to load admin data:', error);
-      auth.removeToken();
-      router.push('/login');
+      console.error('Failed to load data:', error);
     } finally {
       setIsLoading(false);
     }
@@ -160,9 +160,13 @@ export default function UserDetailPage() {
       alert('담당자가 변경되었습니다.');
       setShowManagerModal(false);
       setManagerForm({ managerId: '', reason: '' });
-      loadUser();
-      loadManagerHistory();
-      loadHistory();
+
+      // Reload necessary data in parallel
+      await Promise.all([
+        loadUser(),
+        loadManagerHistory(),
+        loadHistory(),
+      ]);
     } catch (error: any) {
       alert(error.message || '담당자 변경에 실패했습니다.');
     }
@@ -176,9 +180,13 @@ export default function UserDetailPage() {
       alert('회원 유형이 변경되었습니다.');
       setShowMemberTypeModal(false);
       setMemberTypeForm({ memberType: 'STOCK', showCoinRooms: false, reason: '' });
-      loadUser();
-      loadMemberTypeHistory();
-      loadHistory();
+
+      // Reload necessary data in parallel
+      await Promise.all([
+        loadUser(),
+        loadMemberTypeHistory(),
+        loadHistory(),
+      ]);
     } catch (error: any) {
       console.error('Failed to change member type:', error);
       alert(error.message || '회원 유형 변경에 실패했습니다.');
@@ -196,8 +204,12 @@ export default function UserDetailPage() {
       alert('회원이 차단되었습니다.');
       setShowBanModal(false);
       setBanReason('');
-      loadUser();
-      loadHistory();
+
+      // Reload user and history in parallel
+      await Promise.all([
+        loadUser(),
+        loadHistory(),
+      ]);
     } catch (error) {
       console.error('Failed to ban user:', error);
       alert('차단에 실패했습니다.');
@@ -210,8 +222,12 @@ export default function UserDetailPage() {
     try {
       await ApiClient.unbanUser(userId);
       alert('차단이 해제되었습니다.');
-      loadUser();
-      loadHistory();
+
+      // Reload user and history in parallel
+      await Promise.all([
+        loadUser(),
+        loadHistory(),
+      ]);
     } catch (error) {
       console.error('Failed to unban user:', error);
       alert('차단 해제에 실패했습니다.');
@@ -238,10 +254,17 @@ export default function UserDetailPage() {
     }
 
     try {
-      await ApiClient.createUserMemo(userId, newMemo);
+      const response = await ApiClient.createUserMemo(userId, newMemo);
       alert('메모가 추가되었습니다.');
       setNewMemo('');
-      loadMemos();
+
+      // Optimistic update: add new memo to local state
+      if (response) {
+        setMemos(prevMemos => [response, ...prevMemos]);
+      } else {
+        // Fallback: reload memos if response doesn't include the new memo
+        loadMemos();
+      }
       loadHistory();
     } catch (error) {
       console.error('Failed to add memo:', error);

@@ -5,45 +5,36 @@ import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { ApiClient } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { canAccessMenu, AdminUser } from '@/lib/permissions';
+import { canAccessMenu } from '@/lib/permissions';
+import { useAdmin } from '@/contexts/AdminContext';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [admin, setAdmin] = useState<AdminUser | null>(null);
+  const { admin, isLoading: adminLoading, logout } = useAdmin();
   const [stats, setStats] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [selectedTrendPeriod, setSelectedTrendPeriod] = useState<'7' | '30'>('7');
 
   useEffect(() => {
-    const checkAuth = async () => {
+    const loadStats = async () => {
       if (!auth.isAuthenticated()) {
         router.push('/login');
         return;
       }
 
       try {
-        const [adminData, statsData] = await Promise.all([
-          ApiClient.getCurrentAdmin(),
-          ApiClient.getDashboardStats(),
-        ]);
-        setAdmin(adminData);
+        setIsLoadingStats(true);
+        const statsData = await ApiClient.getDashboardStats();
         setStats(statsData);
       } catch (error) {
-        console.error('Failed to load data:', error);
-        auth.removeToken();
-        router.push('/login');
+        console.error('Failed to load stats:', error);
       } finally {
-        setIsLoading(false);
+        setIsLoadingStats(false);
       }
     };
 
-    checkAuth();
+    loadStats();
   }, [router]);
-
-  const handleLogout = () => {
-    auth.removeToken();
-    router.push('/login');
-  };
 
   const getTierLabel = (tier: string) => {
     const labels: Record<string, string> = {
@@ -65,7 +56,7 @@ export default function DashboardPage() {
     return colors[tier] || 'bg-gray-100 text-gray-800';
   };
 
-  if (isLoading) {
+  if (adminLoading || isLoadingStats) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -98,7 +89,7 @@ export default function DashboardPage() {
                 {admin?.name || admin?.loginId}님
               </span>
             </div>
-            <Button variant="outline" onClick={handleLogout}>
+            <Button variant="outline" onClick={logout}>
               로그아웃
             </Button>
           </div>
