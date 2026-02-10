@@ -17,6 +17,13 @@ export class DashboardController {
    */
   @Get('stats')
   async getStats() {
+    // Check cache first
+    const cacheKey = 'dashboard:stats';
+    const cached = await this.redis.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const sevenDaysAgo = new Date(today);
@@ -29,8 +36,19 @@ export class DashboardController {
     // Get online users from Redis (approximate count from session keys)
     const onlineUsers = 0; // TODO: Implement real-time online user tracking
 
-    // New users count
-    const [newUsersToday, newUsers7Days, newUsers30Days] = await Promise.all([
+    // Parallel queries for better performance
+    const [
+      newUsersToday,
+      newUsers7Days,
+      newUsers30Days,
+      inactiveUsersCount,
+      todayMessages,
+      activeSubscriptions,
+      expiredSubscriptions,
+      cancelledSubscriptions,
+      activeChatRooms,
+      todayActiveUsers,
+    ] = await Promise.all([
       this.prisma.user.count({
         where: { createdAt: { gte: today } },
       }),
@@ -40,60 +58,106 @@ export class DashboardController {
       this.prisma.user.count({
         where: { createdAt: { gte: thirtyDaysAgo } },
       }),
+      this.prisma.user.count({
+        where: { createdAt: { lte: inactiveCutoff } },
+      }),
+      this.prisma.chatMessage.count({
+        where: {
+          createdAt: { gte: today },
+          isDeleted: false,
+        },
+      }),
+      this.prisma.subscription.count({
+        where: { status: 'ACTIVE' },
+      }),
+      this.prisma.subscription.count({
+        where: { status: 'EXPIRED' },
+      }),
+      this.prisma.subscription.count({
+        where: { status: 'CANCELLED' },
+      }),
+      this.prisma.chatRoom.count({
+        where: { isActive: true },
+      }),
+      this.prisma.user.count({
+        where: {
+          lastLoginAt: { gte: today },
+        },
+      }),
     ]);
 
-    // Inactive users (30+ days) - based on creation date since User model doesn't have lastLoginAt
-    const inactiveUsersCount = await this.prisma.user.count({
-      where: {
-        createdAt: { lte: inactiveCutoff },
-      },
-    });
+    // Get trends data
+    const [trends7Days, trends30Days] = await Promise.all([
+      this.getUserTrendData(7),
+      this.getUserTrendData(30),
+    ]);
 
-    // Today's chat messages
-    const todayMessages = await this.prisma.chatMessage.count({
-      where: {
-        createdAt: { gte: today },
-        isDeleted: false,
-      },
-    });
-
-    // Unprocessed reports
-    const unresolvedReports = await this.prisma.report.count({
-      where: {
-        status: { in: ['PENDING', 'PROCESSING'] },
-      },
-    });
-
-    // Subscription stats
-    const [activeSubscriptions, expiredSubscriptions, pendingSubscriptions] =
-      await Promise.all([
-        this.prisma.subscription.count({
-          where: { status: 'ACTIVE' },
-        }),
-        this.prisma.subscription.count({
-          where: { status: 'EXPIRED' },
-        }),
-        this.prisma.subscription.count({
-          where: { status: 'CANCELLED' },
-        }),
-      ]);
-
-    return {
+    const result = {
       onlineUsers,
       newUsers: {
         today: newUsersToday,
         last7Days: newUsers7Days,
         last30Days: newUsers30Days,
       },
-      inactiveUsersCount,
-      todayMessages,
-      unresolvedReports,
+      inactiveUsers: inactiveUsersCount,
+      todayChatMessages: todayMessages,
+      activeChatRooms,
+      todayActiveUsers,
       subscriptions: {
         active: activeSubscriptions,
         expired: expiredSubscriptions,
-        pending: pendingSubscriptions,
+        cancelled: cancelledSubscriptions,
+      },
+      trends: {
+        last7Days: trends7Days,
+        last30Days: trends30Days,
       },
     };
+
+    // Cache for 5 minutes
+    await this.redis.set(cacheKey, JSON.stringify(result), 300);
+
+    return result;
+  }
+
+  /**
+   * Helper: Get user trend data
+   */
+  private async getUserTrendData(days: number) {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    const users = await this.prisma.user.groupBy({
+      by: ['createdAt'],
+      where: {
+        createdAt: { gte: startDate },
+      },
+      _count: true,
+    });
+
+    // Group by date
+    const trendData: Record<string, number> = {};
+
+    // Initialize all dates with 0
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      trendData[dateStr] = 0;
+    }
+
+    // Fill in actual counts
+    users.forEach((item) => {
+      const date = item.createdAt.toISOString().split('T')[0];
+      trendData[date] = (trendData[date] || 0) + item._count;
+    });
+
+    return Object.entries(trendData)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, count]) => ({
+        date,
+        count,
+      }));
   }
 
   /**
