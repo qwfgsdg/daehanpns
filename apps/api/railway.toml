@@ -1,0 +1,12 @@
+[deploy]
+region = "asia-northeast1"  # Tokyo (도쿄) - 한국과 가장 가까움
+# region = "asia-southeast1"  # Singapore (싱가포르) - 대안
+
+[build]
+builder = "NIXPACKS"
+buildCommand = "npm run build"
+
+[deploy]
+startCommand = "npm run start:prod"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
