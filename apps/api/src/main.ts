@@ -14,6 +14,7 @@ async function bootstrap() {
   console.log('DATABASE_URL first 30 chars:', process.env.DATABASE_URL?.substring(0, 30));
   console.log('PORT:', process.env.PORT);
   console.log('REDIS_HOST:', process.env.REDIS_HOST);
+  console.log('CORS_ORIGINS:', process.env.CORS_ORIGINS);
   console.log('===================================');
 
   const app = await NestFactory.create(AppModule);
@@ -29,6 +30,7 @@ async function bootstrap() {
 
   // CORS 설정
   const corsOrigins = configService.get<string>('CORS_ORIGINS', 'http://localhost:3000');
+  console.log('🌍 CORS Origins:', corsOrigins.split(','));
   app.enableCors({
     origin: corsOrigins.split(','),
     credentials: true,
