@@ -3,6 +3,7 @@ import { JwtAuthGuard } from '../modules/auth/guards/jwt-auth.guard';
 import { AdminRoleGuard } from '../modules/auth/guards/admin-role.guard';
 import { PrismaService } from '../modules/prisma/prisma.service';
 import { RedisService } from '../modules/redis/redis.service';
+import { Public } from '../common/decorators/public.decorator';
 
 @Controller('dashboard')
 @UseGuards(JwtAuthGuard, AdminRoleGuard)
@@ -244,6 +245,7 @@ export class DashboardController {
   /**
    * Test Redis connection (DEBUG)
    */
+  @Public()
   @Get('test-redis')
   async testRedis() {
     const testKey = 'test:connection';
