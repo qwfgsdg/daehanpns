@@ -54,15 +54,15 @@ export class AuthService {
     if (!admin || !admin.isActive) {
       await this.incrementLoginAttempts(loginId, attemptsKey, lockKey);
 
-      // 로그인 실패 기록
-      await this.logsService.createAdminLog({
+      // 로그인 실패 기록 (비동기)
+      this.logsService.createAdminLog({
         adminId: admin?.id,  // 계정이 있으면 ID 기록, 없으면 null
         action: 'LOGIN_FAILED',
         description: admin ? '비활성화된 계정' : '존재하지 않는 계정',
         ipAddress,
         userAgent,
         status: 'FAILED',
-      });
+      }).catch(err => console.error('Failed to create failed login log:', err));
 
       throw new UnauthorizedException('아이디 또는 비밀번호가 올바르지 않습니다.');
     }
@@ -72,15 +72,15 @@ export class AuthService {
     if (!isPasswordValid) {
       await this.incrementLoginAttempts(loginId, attemptsKey, lockKey);
 
-      // 로그인 실패 기록 (비밀번호 불일치)
-      await this.logsService.createAdminLog({
+      // 로그인 실패 기록 (비동기)
+      this.logsService.createAdminLog({
         adminId: admin.id,
         action: 'LOGIN_FAILED',
         description: '비밀번호 불일치',
         ipAddress,
         userAgent,
         status: 'FAILED',
-      });
+      }).catch(err => console.error('Failed to create failed login log:', err));
 
       throw new UnauthorizedException('아이디 또는 비밀번호가 올바르지 않습니다.');
     }
@@ -92,23 +92,7 @@ export class AuthService {
       console.warn('Redis delete failed:', error.message);
     }
 
-    // 마지막 로그인 시간 업데이트
-    await this.prisma.admin.update({
-      where: { id: admin.id },
-      data: { lastLoginAt: new Date() },
-    });
-
-    // 로그 기록
-    await this.logsService.createAdminLog({
-      adminId: admin.id,
-      action: 'LOGIN_SUCCESS',
-      description: '로그인 성공',
-      ipAddress,
-      userAgent,
-      status: 'SUCCESS',
-    });
-
-    // JWT 생성
+    // JWT 생성 (먼저 처리)
     const payload = {
       sub: admin.id,
       loginId: admin.loginId,
@@ -117,6 +101,22 @@ export class AuthService {
     };
 
     const accessToken = this.jwtService.sign(payload);
+
+    // 마지막 로그인 시간 업데이트 & 로그 기록 (비동기, 응답 후 처리)
+    Promise.all([
+      this.prisma.admin.update({
+        where: { id: admin.id },
+        data: { lastLoginAt: new Date() },
+      }).catch(err => console.error('Failed to update lastLoginAt:', err)),
+      this.logsService.createAdminLog({
+        adminId: admin.id,
+        action: 'LOGIN_SUCCESS',
+        description: '로그인 성공',
+        ipAddress,
+        userAgent,
+        status: 'SUCCESS',
+      }).catch(err => console.error('Failed to create login log:', err)),
+    ]);
 
     return {
       accessToken,
