@@ -16,6 +16,7 @@ export class DashboardController {
   /**
    * Get dashboard statistics
    */
+  @Public()
   @Get('stats')
   async getStats() {
     // Check cache first
