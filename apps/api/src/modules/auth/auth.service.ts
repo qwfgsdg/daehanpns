@@ -102,7 +102,16 @@ export class AuthService {
 
     const accessToken = this.jwtService.sign(payload);
 
-    // 마지막 로그인 시간 업데이트 & 로그 기록 (비동기, 응답 후 처리)
+    const adminResponse = {
+      id: admin.id,
+      loginId: admin.loginId,
+      realName: admin.realName,
+      salesName: admin.salesName,
+      tier: admin.tier,
+      permissions: admin.permissions.map((p) => p.permission),
+    };
+
+    // 마지막 로그인 시간 업데이트 & 로그 기록 & 캐시 생성 (비동기, 응답 후 처리)
     Promise.all([
       this.prisma.admin.update({
         where: { id: admin.id },
@@ -116,22 +125,32 @@ export class AuthService {
         userAgent,
         status: 'SUCCESS',
       }).catch(err => console.error('Failed to create login log:', err)),
+      // 로그인 직후 대시보드 로딩을 위해 admin profile 캐싱
+      this.redis.set(
+        `admin_profile:${admin.id}`,
+        JSON.stringify({ ...admin, permissions: admin.permissions.map((p) => p.permission) }),
+        300
+      ).catch(err => console.warn('Failed to cache admin profile:', err)),
     ]);
 
     return {
       accessToken,
-      admin: {
-        id: admin.id,
-        loginId: admin.loginId,
-        realName: admin.realName,
-        salesName: admin.salesName,
-        tier: admin.tier,
-        permissions: admin.permissions.map((p) => p.permission),
-      },
+      admin: adminResponse,
     };
   }
 
   async getAdminProfile(adminId: string) {
+    // Redis 캐시 확인 (5분)
+    const cacheKey = `admin_profile:${adminId}`;
+    try {
+      const cached = await this.redis.get(cacheKey);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+    } catch (error) {
+      console.warn('Redis get failed:', error.message);
+    }
+
     const admin = await this.prisma.admin.findUnique({
       where: { id: adminId },
       include: {
@@ -147,10 +166,17 @@ export class AuthService {
       throw new UnauthorizedException('권한이 없습니다.');
     }
 
-    return {
+    const result = {
       ...admin,
       permissions: admin.permissions.map((p) => p.permission),
     };
+
+    // Redis에 캐싱 (5분, 비동기)
+    this.redis.set(cacheKey, JSON.stringify(result), 300).catch(err =>
+      console.warn('Redis set failed:', err.message)
+    );
+
+    return result;
   }
 
   private async incrementLoginAttempts(loginId: string, attemptsKey: string, lockKey: string) {
