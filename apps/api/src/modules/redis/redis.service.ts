@@ -9,8 +9,11 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   constructor(private configService: ConfigService) {}
 
   async onModuleInit() {
+    const redisHost = this.configService.get<string>('REDIS_HOST', 'localhost');
+    const useTLS = redisHost.includes('upstash.io') || this.configService.get<boolean>('REDIS_TLS', false);
+
     this.client = new Redis({
-      host: this.configService.get<string>('REDIS_HOST', 'localhost'),
+      host: redisHost,
       port: this.configService.get<number>('REDIS_PORT', 6379),
       password: this.configService.get<string>('REDIS_PASSWORD', ''),
       db: this.configService.get<number>('REDIS_DB', 0),
@@ -21,6 +24,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         if (times > 2) return null;
         return Math.min(times * 100, 500);
       },
+      ...(useTLS && { tls: {} }),
     });
 
     // 연결 에러를 무시하고 계속 진행
