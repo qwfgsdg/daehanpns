@@ -240,4 +240,35 @@ export class DashboardController {
       },
     });
   }
+
+  /**
+   * Test Redis connection (DEBUG)
+   */
+  @Get('test-redis')
+  async testRedis() {
+    const testKey = 'test:connection';
+    const testValue = { timestamp: Date.now(), message: 'Hello Redis!' };
+
+    console.log('[DEBUG] Testing Redis connection...');
+
+    // Test SET
+    await this.redis.set(testKey, JSON.stringify(testValue), 60);
+    console.log('[DEBUG] SET test:connection');
+
+    // Test GET
+    const result = await this.redis.get(testKey);
+    console.log('[DEBUG] GET test:connection:', result ? 'FOUND' : 'NOT FOUND');
+
+    // Test EXISTS
+    const exists = await this.redis.exists('dashboard:stats');
+    console.log('[DEBUG] EXISTS dashboard:stats:', exists);
+
+    return {
+      success: true,
+      testValue,
+      retrieved: result ? JSON.parse(result) : null,
+      dashboardStatsExists: exists,
+      redisStatus: 'connected',
+    };
+  }
 }
