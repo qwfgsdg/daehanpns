@@ -58,9 +58,23 @@ export default function AdminDetailPage() {
       router.push('/login');
       return;
     }
-    loadAdmin();
-    loadPermissions();
+    loadAdminData();
   }, [adminId, router]);
+
+  const loadAdminData = async () => {
+    setIsLoading(true);
+    try {
+      // Load admin and permissions in parallel
+      await Promise.all([
+        loadAdmin(),
+        loadPermissions(),
+      ]);
+    } catch (error) {
+      console.error('Failed to load admin data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (activeTab === 'members') {
@@ -70,7 +84,6 @@ export default function AdminDetailPage() {
   }, [activeTab, memberPage, memberSearch]);
 
   const loadAdmin = async () => {
-    setIsLoading(true);
     try {
       const data = await ApiClient.getAdmin(adminId);
       setAdmin(data);
@@ -85,8 +98,6 @@ export default function AdminDetailPage() {
     } catch (error) {
       console.error('Failed to load admin:', error);
       alert('관리자 정보를 불러오는데 실패했습니다.');
-    } finally {
-      setIsLoading(false);
     }
   };
 

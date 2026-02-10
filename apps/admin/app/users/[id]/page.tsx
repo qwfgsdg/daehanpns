@@ -49,38 +49,43 @@ export default function UserDetailPage() {
   }, [userId, router]);
 
   const loadAdminAndData = async () => {
+    setIsLoading(true);
     try {
       const adminData = await ApiClient.getCurrentAdmin();
       setAdmin(adminData);
 
-      // Load basic data that all admins can access
-      await loadUser();
-      await loadMemos();
-      await loadMemberTypeHistory();
-      await loadManagerHistory();
-      await loadHistory();
+      // Load all data in parallel for better performance
+      const dataPromises = [
+        loadUser(),
+        loadMemos(),
+        loadMemberTypeHistory(),
+        loadManagerHistory(),
+        loadHistory(),
+      ];
 
-      // Load subscriptions only if admin has permission
+      // Add subscriptions if has permission
       if (PermissionHelper.hasPermission(adminData, PERMISSIONS.SUBSCRIPTIONS_MANAGE)) {
-        await loadSubscriptions();
+        dataPromises.push(loadSubscriptions());
       }
+
+      // Execute all requests in parallel
+      await Promise.all(dataPromises);
     } catch (error) {
       console.error('Failed to load admin data:', error);
       auth.removeToken();
       router.push('/login');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const loadUser = async () => {
-    setIsLoading(true);
     try {
       const data = await ApiClient.getUser(userId);
       setUser(data);
     } catch (error) {
       console.error('Failed to load user:', error);
       alert('회원 정보를 불러오는데 실패했습니다.');
-    } finally {
-      setIsLoading(false);
     }
   };
 
