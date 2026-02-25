@@ -114,9 +114,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       // Admin은 참여자 생성 없이 소켓 룸만 join
       if (userType !== 'admin') {
-        await this.chatService.joinRoom(roomId, userId);
+        // 이미 참여자인 경우 무시, 아닌 경우에만 생성
+        const existing = await this.prisma.chatParticipant.findUnique({
+          where: { roomId_userId: { roomId, userId } },
+        });
+        if (!existing) {
+          await this.chatService.joinRoom(roomId, userId);
+        }
       }
       client.join(roomId);
+
+      console.log(`[Socket] ${userType} ${userId} joined room ${roomId}`);
 
       // Notify room
       this.server.to(roomId).emit('room:user_joined', {
@@ -128,6 +136,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       return { success: true };
     } catch (error) {
+      console.error(`[Socket] room:join error:`, error.message);
+      // 에러가 발생해도 소켓 룸은 join 시도
+      client.join(roomId);
       return { success: false, error: error.message };
     }
   }
@@ -183,10 +194,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const isAdmin = userType === 'admin';
     const senderType = isAdmin ? 'ADMIN' : 'USER';
 
+    console.log(`[Socket] message:send from ${userType} ${userId} to room ${data.roomId}`);
+
     try {
       // Check rate limit
       const canSend = await this.chatService.checkRateLimit(userId);
       if (!canSend) {
+        console.warn(`[Socket] Rate limit exceeded for ${userId}`);
         return { success: false, error: 'Rate limit exceeded' };
       }
 
@@ -198,6 +212,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       );
 
       if (!hasPermission) {
+        console.warn(`[Socket] No permission: ${userType} ${userId} in room ${data.roomId}`);
         return { success: false, error: 'No permission to send message' };
       }
 
@@ -232,6 +247,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       // Broadcast to room with sender info
+      console.log(`[Socket] Broadcasting message:new to room ${data.roomId}, msgId: ${message.id}`);
       this.server.to(data.roomId).emit('message:new', {
         message: { ...message, sender: senderInfo },
         timestamp: new Date(),
@@ -254,6 +270,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       return { success: true, message: { ...message, sender: senderInfo } };
     } catch (error) {
+      console.error(`[Socket] message:send error:`, error.message);
       return { success: false, error: error.message };
     }
   }

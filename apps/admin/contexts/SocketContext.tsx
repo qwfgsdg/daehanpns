@@ -70,19 +70,11 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const sendMessage = useCallback((data: { roomId: string; content?: string; fileUrl?: string; fileName?: string }) => {
-    return new Promise<any>((resolve, reject) => {
-      if (!socketRef.current) {
-        reject(new Error('Socket not connected'));
-        return;
-      }
-      socketRef.current.emit('message:send', data, (response: any) => {
-        if (response?.success) {
-          resolve(response);
-        } else {
-          reject(new Error(response?.error || 'Failed to send message'));
-        }
-      });
-    });
+    if (!socketRef.current?.connected) {
+      return Promise.reject(new Error('Socket not connected'));
+    }
+    socketRef.current.emit('message:send', data);
+    return Promise.resolve({ success: true });
   }, []);
 
   const startTyping = useCallback((roomId: string) => {
