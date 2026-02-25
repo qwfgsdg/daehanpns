@@ -34,7 +34,6 @@ model User {
   referralSource       ReferralSource?
   manager              Admin?                @relation("ManagerRelation", fields: [managerId], references: [id])
   chatParticipants     ChatParticipant[]
-  sentMessages         ChatMessage[]         @relation("ChatMessageSender")
   memos                MemberMemo[]
   notifications        Notification[]
   notificationSettings NotificationSetting[]
@@ -235,7 +234,6 @@ model ChatMessage {
   deletedBy     String?
   fileDeletedAt DateTime?
   room          ChatRoom   @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  sender        User       @relation("ChatMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
 
   @@index([roomId])
   @@index([senderId])

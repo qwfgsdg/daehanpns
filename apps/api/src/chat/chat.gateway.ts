@@ -12,6 +12,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ChatService } from './chat.service';
 import { RedisService } from '../modules/redis/redis.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PrismaService } from '../modules/prisma/prisma.service';
 import { OwnerType } from '@prisma/client';
 
 @WebSocketGateway({
@@ -32,6 +33,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly chatService: ChatService,
     private readonly redisService: RedisService,
     private readonly notificationsService: NotificationsService,
+    private readonly prisma: PrismaService,
   ) {}
 
   /**
@@ -106,17 +108,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { roomId: string },
   ) {
-    const { userId } = client.data;
+    const { userId, userType } = client.data;
     const { roomId } = data;
 
     try {
-      await this.chatService.joinRoom(roomId, userId);
+      // Admin은 참여자 생성 없이 소켓 룸만 join
+      if (userType !== 'admin') {
+        await this.chatService.joinRoom(roomId, userId);
+      }
       client.join(roomId);
 
       // Notify room
       this.server.to(roomId).emit('room:user_joined', {
         roomId,
         userId,
+        userType,
         timestamp: new Date(),
       });
 
@@ -134,17 +140,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { roomId: string },
   ) {
-    const { userId } = client.data;
+    const { userId, userType } = client.data;
     const { roomId } = data;
 
     try {
-      await this.chatService.leaveRoom(roomId, userId);
+      // Admin은 참여자 DB 삭제 없이 소켓만 leave
+      if (userType !== 'admin') {
+        await this.chatService.leaveRoom(roomId, userId);
+      }
       client.leave(roomId);
 
       // Notify room
       this.server.to(roomId).emit('room:user_left', {
         roomId,
         userId,
+        userType,
         timestamp: new Date(),
       });
 
@@ -170,6 +180,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     },
   ) {
     const { userId, userType } = client.data;
+    const isAdmin = userType === 'admin';
+    const senderType = isAdmin ? 'ADMIN' : 'USER';
 
     try {
       // Check rate limit
@@ -182,6 +194,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const hasPermission = await this.chatService.canSendMessage(
         data.roomId,
         userId,
+        userType,
       );
 
       if (!hasPermission) {
@@ -192,14 +205,35 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const message = await this.chatService.createMessage({
         roomId: data.roomId,
         senderId: userId,
+        senderType,
         content: data.content,
         fileUrl: data.fileUrl,
         fileName: data.fileName,
       });
 
-      // Broadcast to room
+      // Resolve sender info for broadcast
+      let senderInfo: any = null;
+      if (isAdmin) {
+        const admin = await this.prisma.admin.findUnique({
+          where: { id: userId },
+          select: { id: true, realName: true, salesName: true, logoUrl: true },
+        });
+        senderInfo = admin
+          ? { id: admin.id, name: admin.salesName || admin.realName, profileImage: admin.logoUrl, isAdmin: true }
+          : { id: userId, name: '관리자', profileImage: null, isAdmin: true };
+      } else {
+        const user = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true, name: true, nickname: true, profileImage: true },
+        });
+        senderInfo = user
+          ? { id: user.id, name: user.nickname || user.name, profileImage: user.profileImage, isAdmin: false }
+          : { id: userId, name: '알 수 없음', profileImage: null, isAdmin: false };
+      }
+
+      // Broadcast to room with sender info
       this.server.to(data.roomId).emit('message:new', {
-        message,
+        message: { ...message, sender: senderInfo },
         timestamp: new Date(),
       });
 
@@ -209,15 +243,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         (p) => !this.onlineUsers.has(p.userId) && p.userId !== userId,
       );
 
+      const senderName = senderInfo?.name || '새 메시지';
       for (const participant of offlineParticipants) {
         await this.notificationsService.sendPush(participant.userId, {
-          title: 'New message',
-          body: data.content || 'You have a new message',
+          title: isAdmin ? `[관리자] ${senderName}` : senderName,
+          body: data.content || '새 메시지가 있습니다',
           data: { roomId: data.roomId, messageId: message.id },
         });
       }
 
-      return { success: true, message };
+      return { success: true, message: { ...message, sender: senderInfo } };
     } catch (error) {
       return { success: false, error: error.message };
     }

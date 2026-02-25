@@ -74,18 +74,61 @@ export class ChatMessagesService {
       where,
       take: limit + 1,
       orderBy: { createdAt: 'desc' },
-      // TODO: sender 정보는 별도로 조회 필요 (senderType에 따라 User 또는 Admin)
     });
 
     const hasMore = messages.length > limit;
     const items = hasMore ? messages.slice(0, limit) : messages;
     const nextCursor = hasMore ? items[items.length - 1].id : null;
 
+    // Resolve sender info based on senderType
+    const resolvedMessages = await this.resolveSenderInfo(items);
+
     return {
-      messages: items,
+      messages: resolvedMessages,
       nextCursor,
       hasMore,
     };
+  }
+
+  /**
+   * Resolve sender info for messages (User or Admin based on senderType)
+   */
+  private async resolveSenderInfo(messages: any[]): Promise<any[]> {
+    const userIds = messages.filter(m => m.senderType === 'USER').map(m => m.senderId);
+    const adminIds = messages.filter(m => m.senderType === 'ADMIN').map(m => m.senderId);
+
+    const users = userIds.length > 0
+      ? await this.prisma.user.findMany({
+          where: { id: { in: [...new Set(userIds)] } },
+          select: { id: true, name: true, nickname: true, profileImage: true },
+        })
+      : [];
+
+    const admins = adminIds.length > 0
+      ? await this.prisma.admin.findMany({
+          where: { id: { in: [...new Set(adminIds)] } },
+          select: { id: true, realName: true, salesName: true, logoUrl: true },
+        })
+      : [];
+
+    const userMap = new Map(users.map((u: any) => [u.id, u]));
+    const adminMap = new Map(admins.map((a: any) => [a.id, a]));
+
+    return messages.map(msg => {
+      let sender: any = null;
+      if (msg.senderType === 'ADMIN') {
+        const admin: any = adminMap.get(msg.senderId);
+        sender = admin
+          ? { id: admin.id, name: admin.salesName || admin.realName, profileImage: admin.logoUrl, isAdmin: true }
+          : { id: msg.senderId, name: '관리자', profileImage: null, isAdmin: true };
+      } else {
+        const user: any = userMap.get(msg.senderId);
+        sender = user
+          ? { id: user.id, name: user.nickname || user.name, profileImage: user.profileImage, isAdmin: false }
+          : { id: msg.senderId, name: '알 수 없음', profileImage: null, isAdmin: false };
+      }
+      return { ...msg, sender };
+    });
   }
 
   /**

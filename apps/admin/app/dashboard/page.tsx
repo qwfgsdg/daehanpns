@@ -287,6 +287,13 @@ export default function DashboardPage() {
               href="/chats"
             />
           )}
+          {canAccessMenu(admin, '/messenger') && (
+            <MenuCard
+              title="실시간 메신저"
+              description="모바일 회원과 실시간 채팅"
+              href="/messenger"
+            />
+          )}
           {canAccessMenu(admin, '/logs') && (
             <MenuCard
               title="감사 로그"

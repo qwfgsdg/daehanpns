@@ -111,6 +111,7 @@ export const MENU_PERMISSIONS: Record<string, string[]> = {
   '/admins': [PERMISSIONS.ADMINS_MANAGE],
   '/subscriptions': [PERMISSIONS.SUBSCRIPTIONS_MANAGE],
   '/chats': [PERMISSIONS.CHATS_MANAGE],
+  '/messenger': [PERMISSIONS.CHATS_MANAGE],
   '/logs': [PERMISSIONS.LOGS_VIEW],
   '/banners': [PERMISSIONS.BANNERS_MANAGE],
   '/app-versions': [PERMISSIONS.APP_VERSIONS_MANAGE],

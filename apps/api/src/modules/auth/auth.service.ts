@@ -95,6 +95,7 @@ export class AuthService {
     // JWT 생성 (먼저 처리)
     const payload = {
       sub: admin.id,
+      type: 'admin',
       loginId: admin.loginId,
       tier: admin.tier,
       permissions: admin.permissions.map((p) => p.permission),

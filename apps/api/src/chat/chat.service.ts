@@ -168,7 +168,14 @@ export class ChatService {
   async canSendMessage(
     roomId: string,
     userId: string,
+    userType?: string,
   ): Promise<boolean> {
+    // Admin은 참여자 체크 없이 항상 메시지 전송 가능
+    if (userType === 'admin') {
+      const room = await this.getRoomById(roomId);
+      return !!room;
+    }
+
     const room = await this.getRoomById(roomId);
     if (!room) return false;
 
@@ -186,6 +193,7 @@ export class ChatService {
   async createMessage(data: {
     roomId: string;
     senderId: string;
+    senderType?: 'USER' | 'ADMIN';
     content?: string;
     fileUrl?: string;
     fileName?: string;
@@ -203,6 +211,7 @@ export class ChatService {
       data: {
         roomId: data.roomId,
         senderId: data.senderId,
+        senderType: data.senderType || 'USER',
         content: data.content || '',
         fileUrl: data.fileUrl,
         fileName: data.fileName,
@@ -229,17 +238,14 @@ export class ChatService {
       where.content = { contains: params.search, mode: 'insensitive' };
     }
 
-    return this.prisma.chatMessage.findMany({
+    const messages = await this.prisma.chatMessage.findMany({
       where,
       skip: params.skip || 0,
       take: params.take || 50,
       orderBy: { createdAt: 'desc' },
-      include: {
-        sender: {
-          select: { id: true, name: true, nickname: true, profileImage: true },
-        },
-      },
     });
+
+    return this.resolveSenderInfo(messages);
   }
 
   /**
@@ -294,6 +300,47 @@ export class ChatService {
     return this.prisma.chatPinnedMessage.findMany({
       where: { roomId },
       orderBy: { pinnedAt: 'desc' },
+    });
+  }
+
+  /**
+   * Resolve sender info for messages (User or Admin based on senderType)
+   */
+  async resolveSenderInfo(messages: ChatMessage[]): Promise<any[]> {
+    const userIds = messages.filter(m => m.senderType === 'USER').map(m => m.senderId);
+    const adminIds = messages.filter(m => m.senderType === 'ADMIN').map(m => m.senderId);
+
+    const users = userIds.length > 0
+      ? await this.prisma.user.findMany({
+          where: { id: { in: [...new Set(userIds)] } },
+          select: { id: true, name: true, nickname: true, profileImage: true },
+        })
+      : [];
+
+    const admins = adminIds.length > 0
+      ? await this.prisma.admin.findMany({
+          where: { id: { in: [...new Set(adminIds)] } },
+          select: { id: true, realName: true, salesName: true, logoUrl: true },
+        })
+      : [];
+
+    const userMap = new Map(users.map((u: any) => [u.id, u]));
+    const adminMap = new Map(admins.map((a: any) => [a.id, a]));
+
+    return messages.map(msg => {
+      let sender: any = null;
+      if (msg.senderType === 'ADMIN') {
+        const admin: any = adminMap.get(msg.senderId);
+        sender = admin
+          ? { id: admin.id, name: admin.salesName || admin.realName, profileImage: admin.logoUrl, isAdmin: true }
+          : { id: msg.senderId, name: '관리자', profileImage: null, isAdmin: true };
+      } else {
+        const user: any = userMap.get(msg.senderId);
+        sender = user
+          ? { id: user.id, name: user.nickname || user.name, profileImage: user.profileImage, isAdmin: false }
+          : { id: msg.senderId, name: '알 수 없음', profileImage: null, isAdmin: false };
+      }
+      return { ...msg, sender };
     });
   }
 
