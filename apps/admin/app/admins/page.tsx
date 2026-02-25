@@ -834,7 +834,8 @@ function CreateAdminModal({
         loginId: formData.loginId,
         email: formData.email,
         password: formData.password,
-        name: formData.realName, // realName을 name으로 매핑
+        realName: formData.realName,
+        salesName: formData.salesName,
         tier: formData.tier,
         region: formData.region,
       });

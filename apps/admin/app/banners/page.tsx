@@ -102,7 +102,7 @@ export default function BannersPage() {
     try {
       setLoading(true);
       const token = auth.getToken();
-      const res = await fetch('http://localhost:3000/api/banners', {
+      const res = await fetch('/proxy-api/banners', {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -121,7 +121,7 @@ export default function BannersPage() {
     try {
       setLoading(true);
       const token = auth.getToken();
-      const res = await fetch('http://localhost:3000/api/popups', {
+      const res = await fetch('/proxy-api/popups', {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -142,8 +142,8 @@ export default function BannersPage() {
     try {
       const token = auth.getToken();
       const url = editingBannerId
-        ? `http://localhost:3000/api/banners/${editingBannerId}`
-        : 'http://localhost:3000/api/banners';
+        ? `/proxy-api/banners/${editingBannerId}`
+        : '/proxy-api/banners';
 
       const res = await fetch(url, {
         method: editingBannerId ? 'PATCH' : 'POST',
@@ -170,8 +170,8 @@ export default function BannersPage() {
     try {
       const token = auth.getToken();
       const url = editingPopupId
-        ? `http://localhost:3000/api/popups/${editingPopupId}`
-        : 'http://localhost:3000/api/popups';
+        ? `/proxy-api/popups/${editingPopupId}`
+        : '/proxy-api/popups';
 
       const res = await fetch(url, {
         method: editingPopupId ? 'PATCH' : 'POST',
@@ -197,7 +197,7 @@ export default function BannersPage() {
 
     try {
       const token = auth.getToken();
-      const res = await fetch(`http://localhost:3000/api/banners/${id}`, {
+      const res = await fetch(`/proxy-api/banners/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -216,7 +216,7 @@ export default function BannersPage() {
 
     try {
       const token = auth.getToken();
-      const res = await fetch(`http://localhost:3000/api/popups/${id}`, {
+      const res = await fetch(`/proxy-api/popups/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -233,7 +233,7 @@ export default function BannersPage() {
   const toggleBannerActive = async (id: string) => {
     try {
       const token = auth.getToken();
-      const res = await fetch(`http://localhost:3000/api/banners/${id}/toggle`, {
+      const res = await fetch(`/proxy-api/banners/${id}/toggle`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -249,7 +249,7 @@ export default function BannersPage() {
   const togglePopupActive = async (id: string) => {
     try {
       const token = auth.getToken();
-      const res = await fetch(`http://localhost:3000/api/popups/${id}/toggle`, {
+      const res = await fetch(`/proxy-api/popups/${id}/toggle`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       });

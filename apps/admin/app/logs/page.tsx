@@ -124,7 +124,7 @@ export default function LogsPage() {
       if (endDate) params.append('endDate', endDate);
       if (search) params.append('search', search);
 
-      const res = await fetch(`http://localhost:3000/api/logs?${params}`, {
+      const res = await fetch(`/proxy-api/logs?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -159,7 +159,7 @@ export default function LogsPage() {
   const fetchAdmins = async () => {
     try {
       const token = auth.getToken();
-      const res = await fetch('http://localhost:3000/api/admins', {
+      const res = await fetch('/proxy-api/admins', {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -175,7 +175,7 @@ export default function LogsPage() {
   const fetchActions = async () => {
     try {
       const token = auth.getToken();
-      const res = await fetch('http://localhost:3000/api/logs/actions', {
+      const res = await fetch('/proxy-api/logs/actions', {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -196,7 +196,7 @@ export default function LogsPage() {
       if (endDate) params.append('endDate', endDate);
 
       const res = await fetch(
-        `http://localhost:3000/api/logs/stats?${params}`,
+        `/proxy-api/logs/stats?${params}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -238,7 +238,7 @@ export default function LogsPage() {
       if (search) params.append('search', search);
 
       const res = await fetch(
-        `http://localhost:3000/api/logs/export?${params}`,
+        `/proxy-api/logs/export?${params}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }

@@ -63,7 +63,7 @@ export default function AppVersionsPage() {
     try {
       setLoading(true);
       const token = auth.getToken();
-      const res = await fetch('http://localhost:3000/api/app-versions', {
+      const res = await fetch('/proxy-api/app-versions', {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -84,8 +84,8 @@ export default function AppVersionsPage() {
     try {
       const token = auth.getToken();
       const url = editingId
-        ? `http://localhost:3000/api/app-versions/${editingId}`
-        : 'http://localhost:3000/api/app-versions';
+        ? `/proxy-api/app-versions/${editingId}`
+        : '/proxy-api/app-versions';
 
       const res = await fetch(url, {
         method: editingId ? 'PATCH' : 'POST',
@@ -118,7 +118,7 @@ export default function AppVersionsPage() {
 
     try {
       const token = auth.getToken();
-      const res = await fetch(`http://localhost:3000/api/app-versions/${id}`, {
+      const res = await fetch(`/proxy-api/app-versions/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

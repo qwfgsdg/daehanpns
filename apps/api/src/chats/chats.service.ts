@@ -393,23 +393,8 @@ export class ChatsService {
    * 채팅방 삭제 (소프트 삭제)
    */
   async deleteChatRoom(roomId: string, adminId: string, reason?: string): Promise<ChatRoom> {
-    const room = await this.prisma.chatRoom.findUnique({
-      where: { id: roomId },
-      include: {
-        participants: true,
-        messages: { take: 1 },
-      },
-    });
+    await this.findById(roomId);
 
-    if (!room) {
-      throw new NotFoundException('채팅방을 찾을 수 없습니다.');
-    }
-
-    if (room.deletedAt) {
-      throw new BadRequestException('이미 삭제된 채팅방입니다.');
-    }
-
-    // 소프트 삭제
     const updated = await this.prisma.chatRoom.update({
       where: { id: roomId },
       data: {
@@ -418,7 +403,6 @@ export class ChatsService {
       },
     });
 
-    // 로그 기록
     await this.logsService.createAdminLog({
       adminId,
       action: 'CHAT_ROOM_DELETE',
