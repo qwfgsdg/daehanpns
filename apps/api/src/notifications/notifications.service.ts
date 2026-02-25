@@ -21,16 +21,20 @@ export class NotificationsService implements OnModuleInit {
 
   async onModuleInit() {
     // Initialize Firebase Admin SDK
-    if (!admin.apps.length) {
-      this.firebaseApp = admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId: process.env.FIREBASE_PROJECT_ID,
-          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-          privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-        }),
-      });
-    } else {
-      this.firebaseApp = admin.app();
+    try {
+      if (!admin.apps.length) {
+        this.firebaseApp = admin.initializeApp({
+          credential: admin.credential.cert({
+            projectId: process.env.FIREBASE_PROJECT_ID,
+            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+            privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+          }),
+        });
+      } else {
+        this.firebaseApp = admin.app();
+      }
+    } catch (error) {
+      console.warn('[FCM] Firebase initialization failed (push notifications disabled):', error.message);
     }
   }
 
@@ -61,8 +65,7 @@ export class NotificationsService implements OnModuleInit {
   ): Promise<void> {
     const token = await this.getFcmToken(userId);
 
-    if (!token) {
-      console.warn(`No FCM token found for user ${userId}`);
+    if (!token || !this.firebaseApp) {
       return;
     }
 

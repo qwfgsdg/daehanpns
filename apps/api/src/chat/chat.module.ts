@@ -6,7 +6,7 @@ import { PrismaModule } from '../modules/prisma/prisma.module';
 import { LogsModule } from '../modules/logs/logs.module';
 import { RedisModule } from '../modules/redis/redis.module';
 import { NotificationsModule } from '../notifications/notifications.module';
-import { JwtModule } from '@nestjs/jwt';
+import { AuthModule } from '../modules/auth/auth.module';
 
 @Module({
   imports: [
@@ -14,7 +14,7 @@ import { JwtModule } from '@nestjs/jwt';
     LogsModule,
     RedisModule,
     NotificationsModule,
-    JwtModule,
+    AuthModule,
   ],
   providers: [ChatService, ChatGateway],
   controllers: [ChatController],

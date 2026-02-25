@@ -13,6 +13,7 @@ import { AdminsModule } from './admins/admins.module';
 import { ExpertsModule } from './experts/experts.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { ChatsModule } from './chats/chats.module';
+import { ChatModule } from './chat/chat.module';
 import { BannersModule } from './modules/banners/banners.module';
 import { PopupsModule } from './modules/popups/popups.module';
 import { AppVersionsModule } from './modules/app-versions/app-versions.module';
@@ -42,6 +43,7 @@ import { StatsModule } from './stats/stats.module';
     ExpertsModule,
     SubscriptionsModule,
     ChatsModule,
+    ChatModule,
     BannersModule,
     PopupsModule,
     AppVersionsModule,
