@@ -700,6 +700,36 @@ export class ApiClient {
     return this.request<any>(`/users/${userId}/chat-sanctions`);
   }
 
+  // ===== Read Status APIs =====
+  static async getReadStatus(roomId: string) {
+    return this.request<{
+      totalActive: number;
+      participants: Array<{ userId: string; lastReadAt: string | null }>;
+    }>(`/chat/rooms/${roomId}/read-status`);
+  }
+
+  // ===== File Upload APIs =====
+  static async uploadChatFile(file: File): Promise<{ url: string; fileName: string; fileSize: number; mimeType: string }> {
+    const token = this.getAuthToken();
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${API_BASE_URL}/files/upload/chat`, {
+      method: 'POST',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Upload failed' }));
+      throw new Error(error.message || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  }
+
   // ===== Stats APIs =====
   static async getChatStatsSummary(params: {
     startDate: string;

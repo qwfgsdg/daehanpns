@@ -101,7 +101,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   /**
-   * Join room
+   * Join room — with permission checks
    */
   @SubscribeMessage('room:join')
   async handleJoinRoom(
@@ -112,33 +112,48 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const { roomId } = data;
 
     try {
-      // Admin은 참여자 생성 없이 소켓 룸만 join
-      if (userType !== 'admin') {
-        // 이미 참여자인 경우 무시, 아닌 경우에만 생성
-        const existing = await this.prisma.chatParticipant.findUnique({
-          where: { roomId_userId: { roomId, userId } },
+      // 1. Admin은 무조건 소켓 룸 join (DB 참여자 생성 안 함)
+      if (userType === 'admin') {
+        client.join(roomId);
+        console.log(`[Socket] admin ${userId} joined room ${roomId}`);
+        this.server.to(roomId).emit('room:user_joined', {
+          roomId, userId, userType, timestamp: new Date(),
         });
-        if (!existing) {
-          await this.chatService.joinRoom(roomId, userId);
-        }
+        return { success: true };
       }
+
+      // 2. ChatParticipant 조회
+      const participant = await this.prisma.chatParticipant.findUnique({
+        where: { roomId_userId: { roomId, userId } },
+      });
+
+      // 3. 강퇴 체크
+      if (participant?.isKicked) {
+        return { success: false, error: '강퇴된 채팅방입니다' };
+      }
+
+      // 4. 참여자 아님 or 퇴장
+      if (!participant || participant.leftAt) {
+        return { success: false, error: '참여 권한이 없습니다' };
+      }
+
+      // 5. 구독 기반 방 체크
+      const hasSubscription = await this.chatService.checkSubscriptionAccess(roomId, userId);
+      if (!hasSubscription) {
+        return { success: false, error: '구독이 만료되었습니다' };
+      }
+
+      // 6. 소켓 룸 join
       client.join(roomId);
+      console.log(`[Socket] user ${userId} joined room ${roomId}`);
 
-      console.log(`[Socket] ${userType} ${userId} joined room ${roomId}`);
-
-      // Notify room
       this.server.to(roomId).emit('room:user_joined', {
-        roomId,
-        userId,
-        userType,
-        timestamp: new Date(),
+        roomId, userId, userType, timestamp: new Date(),
       });
 
       return { success: true };
     } catch (error) {
       console.error(`[Socket] room:join error:`, error.message);
-      // 에러가 발생해도 소켓 룸은 join 시도
-      client.join(roomId);
       return { success: false, error: error.message };
     }
   }
@@ -155,10 +170,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const { roomId } = data;
 
     try {
-      // Admin은 참여자 DB 삭제 없이 소켓만 leave
-      if (userType !== 'admin') {
-        await this.chatService.leaveRoom(roomId, userId);
-      }
       client.leave(roomId);
 
       // Notify room
@@ -176,7 +187,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   /**
-   * Send message
+   * Send message — with shadow ban handling
    */
   @SubscribeMessage('message:send')
   async handleSendMessage(
@@ -204,16 +215,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return { success: false, error: 'Rate limit exceeded' };
       }
 
-      // Check permissions
-      const hasPermission = await this.chatService.canSendMessage(
+      // Check permissions (new return type)
+      const permission = await this.chatService.canSendMessage(
         data.roomId,
         userId,
         userType,
       );
 
-      if (!hasPermission) {
-        console.warn(`[Socket] No permission: ${userType} ${userId} in room ${data.roomId}`);
-        return { success: false, error: 'No permission to send message' };
+      if (!permission.allowed) {
+        console.warn(`[Socket] No permission: ${userType} ${userId} in room ${data.roomId} - ${permission.reason}`);
+        return { success: false, error: permission.reason };
       }
 
       // Create message
@@ -227,36 +238,35 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
 
       // Resolve sender info for broadcast
-      let senderInfo: any = null;
-      if (isAdmin) {
-        const admin = await this.prisma.admin.findUnique({
-          where: { id: userId },
-          select: { id: true, realName: true, salesName: true, logoUrl: true },
+      const senderInfo = await this.resolveSenderInfo(userId, isAdmin);
+
+      const messageWithSender = { ...message, sender: senderInfo };
+
+      // Shadow ban handling: only send to the sender's own sockets
+      if (permission.isShadowBanned) {
+        console.log(`[Socket] Shadow banned user ${userId} - sending only to self`);
+        const userSockets = this.onlineUsers.get(userId) || [];
+        userSockets.forEach((socketId) => {
+          this.server.to(socketId).emit('message:new', {
+            message: messageWithSender,
+            timestamp: new Date(),
+          });
         });
-        senderInfo = admin
-          ? { id: admin.id, name: admin.salesName || admin.realName, profileImage: admin.logoUrl, isAdmin: true }
-          : { id: userId, name: '관리자', profileImage: null, isAdmin: true };
-      } else {
-        const user = await this.prisma.user.findUnique({
-          where: { id: userId },
-          select: { id: true, name: true, nickname: true, profileImage: true },
-        });
-        senderInfo = user
-          ? { id: user.id, name: user.nickname || user.name, profileImage: user.profileImage, isAdmin: false }
-          : { id: userId, name: '알 수 없음', profileImage: null, isAdmin: false };
+        // No push notifications for shadow banned messages
+        return { success: true, message: messageWithSender };
       }
 
-      // Broadcast to room with sender info
+      // Normal broadcast to entire room
       console.log(`[Socket] Broadcasting message:new to room ${data.roomId}, msgId: ${message.id}`);
       this.server.to(data.roomId).emit('message:new', {
-        message: { ...message, sender: senderInfo },
+        message: messageWithSender,
         timestamp: new Date(),
       });
 
       // Send push notifications to offline participants
       const participants = await this.chatService.getParticipants(data.roomId);
       const offlineParticipants = participants.filter(
-        (p) => !this.onlineUsers.has(p.userId) && p.userId !== userId,
+        (p) => !this.onlineUsers.has(p.userId) && p.userId !== userId && !p.isKicked && !p.leftAt,
       );
 
       const senderName = senderInfo?.name || '새 메시지';
@@ -268,7 +278,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         });
       }
 
-      return { success: true, message: { ...message, sender: senderInfo } };
+      return { success: true, message: messageWithSender };
     } catch (error) {
       console.error(`[Socket] message:send error:`, error.message);
       return { success: false, error: error.message };
@@ -276,21 +286,139 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   /**
-   * Delete message
+   * Delete message — admin only (다른 사람 메시지 삭제)
    */
   @SubscribeMessage('message:delete')
   async handleDeleteMessage(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { messageId: string; roomId: string },
   ) {
-    const { userId } = client.data;
+    const { userId, userType } = client.data;
+
+    // Admin 전용 가드
+    if (userType !== 'admin') {
+      return { success: false, error: '관리자만 다른 사람의 메시지를 삭제할 수 있습니다' };
+    }
 
     try {
-      const deleted = await this.chatService.deleteMessage(data.messageId);
+      await this.chatService.deleteMessageWithTracker(data.messageId, userId);
 
       // Broadcast to room
       this.server.to(data.roomId).emit('message:deleted', {
         messageId: data.messageId,
+        timestamp: new Date(),
+      });
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Delete own message — any user can delete their own messages
+   */
+  @SubscribeMessage('message:delete_own')
+  async handleDeleteOwnMessage(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { messageId: string; roomId: string },
+  ) {
+    const { userId } = client.data;
+
+    try {
+      // Verify message ownership
+      const message = await this.prisma.chatMessage.findUnique({
+        where: { id: data.messageId },
+      });
+
+      if (!message) {
+        return { success: false, error: '메시지를 찾을 수 없습니다' };
+      }
+
+      if (message.senderId !== userId) {
+        return { success: false, error: '본인의 메시지만 삭제할 수 있습니다' };
+      }
+
+      await this.chatService.deleteMessageWithTracker(data.messageId, userId);
+
+      // Broadcast to room
+      this.server.to(data.roomId).emit('message:deleted', {
+        messageId: data.messageId,
+        timestamp: new Date(),
+      });
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Read room — update lastReadAt and broadcast
+   */
+  @SubscribeMessage('room:read')
+  async handleRoomRead(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { roomId: string },
+  ) {
+    const { userId, userType } = client.data;
+    const now = new Date();
+
+    try {
+      // Admin: DB 업데이트 없이 브로드캐스트만
+      if (userType !== 'admin') {
+        await this.chatService.updateLastRead(data.roomId, userId);
+      }
+
+      // Broadcast read status to room
+      this.server.to(data.roomId).emit('room:user_read', {
+        roomId: data.roomId,
+        userId,
+        lastReadAt: now.toISOString(),
+      });
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Force disconnect participant — admin only
+   * Removes target user's sockets from the room and sends kicked event
+   */
+  @SubscribeMessage('participant:force_disconnect')
+  async handleForceDisconnect(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { roomId: string; userId: string },
+  ) {
+    const { userType } = client.data;
+
+    if (userType !== 'admin') {
+      return { success: false, error: '관리자만 사용할 수 있습니다' };
+    }
+
+    try {
+      const targetSockets = this.onlineUsers.get(data.userId) || [];
+
+      // Get all sockets for the target user and leave them from the room
+      for (const socketId of targetSockets) {
+        const targetSocket = this.server.sockets.sockets.get(socketId);
+        if (targetSocket) {
+          targetSocket.leave(data.roomId);
+          // Send kicked event to the target user
+          targetSocket.emit('room:kicked', {
+            roomId: data.roomId,
+            timestamp: new Date(),
+          });
+        }
+      }
+
+      // Notify room that user was kicked
+      this.server.to(data.roomId).emit('room:user_left', {
+        roomId: data.roomId,
+        userId: data.userId,
+        userType: 'user',
         timestamp: new Date(),
       });
 
@@ -409,6 +537,29 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Resolve sender info helper
+   */
+  private async resolveSenderInfo(userId: string, isAdmin: boolean) {
+    if (isAdmin) {
+      const admin = await this.prisma.admin.findUnique({
+        where: { id: userId },
+        select: { id: true, realName: true, salesName: true, logoUrl: true },
+      });
+      return admin
+        ? { id: admin.id, name: admin.salesName || admin.realName, profileImage: admin.logoUrl, isAdmin: true }
+        : { id: userId, name: '관리자', profileImage: null, isAdmin: true };
+    } else {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, name: true, nickname: true, profileImage: true },
+      });
+      return user
+        ? { id: user.id, name: user.nickname || user.name, profileImage: user.profileImage, isAdmin: false }
+        : { id: userId, name: '알 수 없음', profileImage: null, isAdmin: false };
     }
   }
 

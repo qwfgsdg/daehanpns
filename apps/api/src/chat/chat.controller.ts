@@ -261,4 +261,12 @@ export class ChatController {
     await this.chatService.updateLastRead(id, req.user.id);
     return { success: true };
   }
+
+  /**
+   * Get read status for a room (active participants with lastReadAt)
+   */
+  @Get('rooms/:id/read-status')
+  async getReadStatus(@Param('id') id: string) {
+    return this.chatService.getReadStatus(id);
+  }
 }

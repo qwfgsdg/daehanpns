@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useAdmin } from '@/contexts/AdminContext';
-import { useChat } from '@/hooks/useChat';
+import { useChat, getUnreadCount } from '@/hooks/useChat';
 import { ChatHeader } from './ChatHeader';
 import { ChatBubble } from './ChatBubble';
 import { MessageInput } from './MessageInput';
@@ -31,7 +31,7 @@ function isSameDay(a: string, b: string): boolean {
 
 export function ChatConversation({ roomId, room }: ChatConversationProps) {
   const { admin } = useAdmin();
-  const { messages, isLoadingMessages, hasMore, loadMore, typingUsers } = useChat(roomId);
+  const { messages, isLoadingMessages, hasMore, loadMore, typingUsers, readInfo } = useChat(roomId);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const prevMessagesLenRef = useRef(0);
@@ -91,9 +91,10 @@ export function ChatConversation({ roomId, room }: ChatConversationProps) {
 
         {/* Messages */}
         {messages.map((msg, idx) => {
-          const isAdmin = msg.senderId === admin?.id;
+          const isAdminMsg = msg.senderId === admin?.id;
           const showSender = idx === 0 || messages[idx - 1].senderId !== msg.senderId;
           const showDateSeparator = idx === 0 || !isSameDay(messages[idx - 1].createdAt, msg.createdAt);
+          const unread = getUnreadCount(msg, readInfo);
 
           return (
             <div key={msg.id}>
@@ -106,8 +107,10 @@ export function ChatConversation({ roomId, room }: ChatConversationProps) {
               )}
               <ChatBubble
                 message={msg}
-                isAdmin={isAdmin}
+                isAdmin={isAdminMsg}
                 showSender={showSender}
+                currentUserId={admin?.id}
+                unreadCount={unread}
               />
             </div>
           );

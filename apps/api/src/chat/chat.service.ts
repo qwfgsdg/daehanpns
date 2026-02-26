@@ -163,28 +163,124 @@ export class ChatService {
   }
 
   /**
-   * Check if user can send message (bidirectional/unidirectional + vice owner check)
+   * Check if user can send message
+   * Returns detailed result with permission info and shadow ban status
    */
   async canSendMessage(
     roomId: string,
     userId: string,
     userType?: string,
-  ): Promise<boolean> {
-    // Admin은 참여자 체크 없이 항상 메시지 전송 가능
+  ): Promise<{ allowed: boolean; reason?: string; isShadowBanned?: boolean }> {
+    // 1. Admin은 방 존재하면 무조건 허용
     if (userType === 'admin') {
       const room = await this.getRoomById(roomId);
-      return !!room;
+      if (!room) return { allowed: false, reason: '존재하지 않는 채팅방입니다' };
+      return { allowed: true };
     }
 
     const room = await this.getRoomById(roomId);
-    if (!room) return false;
+    if (!room) return { allowed: false, reason: '존재하지 않는 채팅방입니다' };
 
-    // Check if user is participant
+    // 2. Participant 조회
     const participant = await this.prisma.chatParticipant.findUnique({
       where: { roomId_userId: { roomId, userId } },
     });
 
-    return !!participant;
+    if (!participant) return { allowed: false, reason: '참여 권한이 없습니다' };
+    if (participant.isKicked) return { allowed: false, reason: '강퇴된 채팅방입니다' };
+    if (participant.leftAt) return { allowed: false, reason: '퇴장한 채팅방입니다' };
+
+    // 3. 방 타입별 권한 체크
+    if (room.type === 'ONE_TO_N') {
+      // 1:N 방송방: OWNER, VICE_OWNER만 전송 가능
+      if (participant.ownerType !== 'OWNER' && participant.ownerType !== 'VICE_OWNER') {
+        return { allowed: false, reason: '읽기 전용 채팅방입니다' };
+      }
+    }
+    // ONE_TO_ONE, TWO_WAY: 모든 참여자 전송 가능
+
+    // 4. 쉐도우밴 체크 — 전송은 허용하되 플래그 반환
+    if (participant.isShadowBanned) {
+      return { allowed: true, isShadowBanned: true };
+    }
+
+    return { allowed: true };
+  }
+
+  /**
+   * Check subscription access for expert rooms
+   */
+  async checkSubscriptionAccess(roomId: string, userId: string): Promise<boolean> {
+    // Redis 캐시 체크
+    const cacheKey = `sub_check:${userId}:${roomId}`;
+    const cached = await this.redis.get(cacheKey);
+    if (cached !== null) return cached === '1';
+
+    // Expert 방인지 확인
+    const expert = await this.prisma.expert.findFirst({
+      where: {
+        OR: [{ vipRoomId: roomId }, { vvipRoomId: roomId }],
+      },
+    });
+
+    // Expert 방이 아니면 자유 접근
+    if (!expert) {
+      await this.redis.set(cacheKey, '1', 300);
+      return true;
+    }
+
+    // Subscription 테이블에서 활성 구독 확인
+    const now = new Date();
+    const subscription = await this.prisma.subscription.findFirst({
+      where: {
+        userId,
+        expertId: expert.id,
+        status: 'ACTIVE',
+        endDate: { gte: now },
+      },
+    });
+
+    const hasAccess = !!subscription;
+    await this.redis.set(cacheKey, hasAccess ? '1' : '0', 300);
+    return hasAccess;
+  }
+
+  /**
+   * Get read status for a room (active participants with lastReadAt)
+   */
+  async getReadStatus(roomId: string): Promise<{
+    totalActive: number;
+    participants: Array<{ userId: string; lastReadAt: string | null }>;
+  }> {
+    const participants = await this.prisma.chatParticipant.findMany({
+      where: {
+        roomId,
+        leftAt: null,
+        isKicked: false,
+      },
+      select: {
+        userId: true,
+        lastReadAt: true,
+      },
+    });
+
+    return {
+      totalActive: participants.length,
+      participants: participants.map(p => ({
+        userId: p.userId,
+        lastReadAt: p.lastReadAt ? p.lastReadAt.toISOString() : null,
+      })),
+    };
+  }
+
+  /**
+   * Soft delete message with deletedBy tracking
+   */
+  async deleteMessageWithTracker(id: string, deletedBy: string): Promise<ChatMessage> {
+    return this.prisma.chatMessage.update({
+      where: { id },
+      data: { isDeleted: true, deletedAt: new Date(), deletedBy },
+    });
   }
 
   /**

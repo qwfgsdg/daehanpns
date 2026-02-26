@@ -10,6 +10,10 @@ interface SocketContextType {
   joinRoom: (roomId: string) => void;
   leaveRoom: (roomId: string) => void;
   sendMessage: (data: { roomId: string; content?: string; fileUrl?: string; fileName?: string }) => Promise<any>;
+  deleteMessage: (roomId: string, messageId: string) => void;
+  deleteOwnMessage: (roomId: string, messageId: string) => void;
+  readRoom: (roomId: string) => void;
+  forceDisconnectParticipant: (roomId: string, userId: string) => void;
   startTyping: (roomId: string) => void;
   stopTyping: (roomId: string) => void;
 }
@@ -77,6 +81,22 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     return Promise.resolve({ success: true });
   }, []);
 
+  const deleteMessage = useCallback((roomId: string, messageId: string) => {
+    socketRef.current?.emit('message:delete', { roomId, messageId });
+  }, []);
+
+  const deleteOwnMessage = useCallback((roomId: string, messageId: string) => {
+    socketRef.current?.emit('message:delete_own', { roomId, messageId });
+  }, []);
+
+  const readRoom = useCallback((roomId: string) => {
+    socketRef.current?.emit('room:read', { roomId });
+  }, []);
+
+  const forceDisconnectParticipant = useCallback((roomId: string, userId: string) => {
+    socketRef.current?.emit('participant:force_disconnect', { roomId, userId });
+  }, []);
+
   const startTyping = useCallback((roomId: string) => {
     socketRef.current?.emit('typing:start', { roomId });
   }, []);
@@ -92,6 +112,10 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       joinRoom,
       leaveRoom,
       sendMessage,
+      deleteMessage,
+      deleteOwnMessage,
+      readRoom,
+      forceDisconnectParticipant,
       startTyping,
       stopTyping,
     }}>

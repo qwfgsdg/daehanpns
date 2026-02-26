@@ -28,13 +28,33 @@ export interface TypingUser {
   roomId: string;
 }
 
+export interface ReadInfo {
+  totalActive: number;
+  participants: Array<{ userId: string; lastReadAt: string | null }>;
+}
+
+/**
+ * Calculate unread count for a message
+ * = totalActive - count of participants who read at or after message.createdAt
+ */
+export function getUnreadCount(message: ChatMessageItem, readInfo: ReadInfo | null): number {
+  if (!readInfo || readInfo.totalActive <= 1) return 0;
+  const msgTime = new Date(message.createdAt).getTime();
+  const readCount = readInfo.participants.filter(
+    p => p.lastReadAt && new Date(p.lastReadAt).getTime() >= msgTime
+  ).length;
+  const unread = readInfo.totalActive - readCount;
+  return unread > 0 ? unread : 0;
+}
+
 export function useChat(roomId: string | null) {
-  const { socket, joinRoom, leaveRoom } = useSocket();
+  const { socket, joinRoom, leaveRoom, readRoom } = useSocket();
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
+  const [readInfo, setReadInfo] = useState<ReadInfo | null>(null);
   const currentRoomRef = useRef<string | null>(null);
 
   // Join/leave room on roomId change
@@ -47,10 +67,14 @@ export function useChat(roomId: string | null) {
       joinRoom(roomId);
       currentRoomRef.current = roomId;
       loadMessages(roomId, true);
+      loadReadInfo(roomId);
+      // Mark as read on room entry
+      readRoom(roomId);
     } else {
       setMessages([]);
       setHasMore(false);
       setNextCursor(null);
+      setReadInfo(null);
       currentRoomRef.current = null;
     }
 
@@ -60,7 +84,17 @@ export function useChat(roomId: string | null) {
         currentRoomRef.current = null;
       }
     };
-  }, [roomId, joinRoom, leaveRoom]);
+  }, [roomId, joinRoom, leaveRoom, readRoom]);
+
+  // Load read status via REST API
+  const loadReadInfo = useCallback(async (targetRoomId: string) => {
+    try {
+      const result = await ApiClient.getReadStatus(targetRoomId);
+      setReadInfo(result);
+    } catch (error) {
+      console.error('Failed to load read info:', error);
+    }
+  }, []);
 
   // Load messages via REST API
   const loadMessages = useCallback(async (targetRoomId: string, initial: boolean) => {
@@ -105,6 +139,10 @@ export function useChat(roomId: string | null) {
           if (prev.some(m => m.id === data.message.id)) return prev;
           return [...prev, data.message];
         });
+        // Auto read when viewing the room
+        if (currentRoomRef.current) {
+          readRoom(currentRoomRef.current);
+        }
       }
     };
 
@@ -131,18 +169,36 @@ export function useChat(roomId: string | null) {
       setTypingUsers(prev => prev.filter(t => t.userId !== data.userId));
     };
 
+    const handleUserRead = (data: { roomId: string; userId: string; lastReadAt: string }) => {
+      if (data.roomId === currentRoomRef.current) {
+        setReadInfo(prev => {
+          if (!prev) return prev;
+          const updated = prev.participants.map(p =>
+            p.userId === data.userId ? { ...p, lastReadAt: data.lastReadAt } : p
+          );
+          // If user not in list, add them
+          if (!updated.some(p => p.userId === data.userId)) {
+            updated.push({ userId: data.userId, lastReadAt: data.lastReadAt });
+          }
+          return { ...prev, participants: updated };
+        });
+      }
+    };
+
     socket.on('message:new', handleNewMessage);
     socket.on('message:deleted', handleMessageDeleted);
     socket.on('typing:user_typing', handleTypingStart);
     socket.on('typing:user_stopped', handleTypingStop);
+    socket.on('room:user_read', handleUserRead);
 
     return () => {
       socket.off('message:new', handleNewMessage);
       socket.off('message:deleted', handleMessageDeleted);
       socket.off('typing:user_typing', handleTypingStart);
       socket.off('typing:user_stopped', handleTypingStop);
+      socket.off('room:user_read', handleUserRead);
     };
-  }, [socket]);
+  }, [socket, readRoom]);
 
   return {
     messages,
@@ -150,6 +206,7 @@ export function useChat(roomId: string | null) {
     hasMore,
     loadMore,
     typingUsers,
+    readInfo,
     setMessages,
   };
 }
