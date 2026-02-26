@@ -286,7 +286,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   /**
-   * Delete message — admin only (다른 사람 메시지 삭제)
+   * Delete message — admin only (다른 사람 메시지 삭제, 계층 체크)
    */
   @SubscribeMessage('message:delete')
   async handleDeleteMessage(
@@ -301,6 +301,31 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     try {
+      // 대상 메시지 조회
+      const message = await this.prisma.chatMessage.findUnique({
+        where: { id: data.messageId },
+      });
+      if (!message) {
+        return { success: false, error: '메시지를 찾을 수 없습니다' };
+      }
+
+      // 대상이 ADMIN 메시지면 계층 비교
+      if (message.senderType === 'ADMIN' && message.senderId !== userId) {
+        const TIER_RANK: Record<string, number> = {
+          INTEGRATED: 4, CEO: 3, MIDDLE: 2, GENERAL: 1,
+        };
+        const [requester, target] = await Promise.all([
+          this.prisma.admin.findUnique({ where: { id: userId }, select: { tier: true } }),
+          this.prisma.admin.findUnique({ where: { id: message.senderId }, select: { tier: true } }),
+        ]);
+        const requesterRank = TIER_RANK[requester?.tier || 'GENERAL'] || 1;
+        const targetRank = TIER_RANK[target?.tier || 'GENERAL'] || 1;
+
+        if (requesterRank < targetRank) {
+          return { success: false, error: '상위 관리자의 메시지는 삭제할 수 없습니다' };
+        }
+      }
+
       await this.chatService.deleteMessageWithTracker(data.messageId, userId);
 
       // Broadcast to room
