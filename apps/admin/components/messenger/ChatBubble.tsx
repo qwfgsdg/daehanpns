@@ -39,17 +39,97 @@ export function ChatBubble({ message, isAdmin, showSender, currentUserId, unread
   const senderIsAdmin = message.sender?.isAdmin || message.senderType === 'ADMIN';
   const isOwnMessage = currentUserId && message.senderId === currentUserId;
   const hasImage = message.fileUrl && isImageUrl(message.fileUrl) && !imageError;
+  const hasContent = !!message.content;
 
   const handleDelete = () => {
     if (!confirm('이 메시지를 삭제하시겠습니까?')) return;
     if (isOwnMessage) {
       deleteOwnMessage(message.roomId, message.id);
     } else {
-      // Admin can delete anyone's message
       deleteMessage(message.roomId, message.id);
     }
   };
 
+  // 이미지+캡션이 있는 메시지: 카드 스타일로 분리 렌더링
+  if (hasImage) {
+    return (
+      <div
+        className={`flex ${isAdmin ? 'justify-end' : 'justify-start'} mb-1 group`}
+        onMouseEnter={() => setShowActions(true)}
+        onMouseLeave={() => setShowActions(false)}
+      >
+        <div className={`max-w-[280px] ${isAdmin ? 'items-end' : 'items-start'}`}>
+          {/* Sender name */}
+          {showSender && !isAdmin && (
+            <div className="flex items-center gap-1.5 mb-0.5 ml-1">
+              {senderIsAdmin && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-bold">
+                  관리자
+                </span>
+              )}
+              <span className="text-xs text-gray-500 font-medium">
+                {message.sender?.name || '알 수 없음'}
+              </span>
+            </div>
+          )}
+
+          <div className={`flex items-end gap-1.5 ${isAdmin ? 'flex-row-reverse' : 'flex-row'}`}>
+            {/* Image card */}
+            <div className={`relative rounded-2xl overflow-hidden ${
+              isAdmin
+                ? 'bg-blue-500 rounded-tr-sm'
+                : senderIsAdmin
+                  ? 'bg-purple-50 border border-purple-200 rounded-tl-sm'
+                  : 'bg-white border border-gray-200 rounded-tl-sm'
+            }`}>
+              {/* Image */}
+              <a href={message.fileUrl!} target="_blank" rel="noopener noreferrer" className="block">
+                <img
+                  src={message.fileUrl!}
+                  alt={message.fileName || '이미지'}
+                  className="w-full max-h-[300px] object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                  onError={() => setImageError(true)}
+                />
+              </a>
+
+              {/* Caption below image */}
+              {hasContent && (
+                <div className={`px-3 py-2 text-sm ${
+                  isAdmin ? 'text-white' : 'text-gray-900'
+                }`}>
+                  <p className="whitespace-pre-wrap break-words overflow-wrap-anywhere"
+                     style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
+                    {message.content}
+                  </p>
+                </div>
+              )}
+
+              {/* Delete button */}
+              {showActions && (
+                <button
+                  onClick={handleDelete}
+                  className={`absolute top-1 ${isAdmin ? 'left-1' : 'right-1'} w-5 h-5 flex items-center justify-center rounded-full bg-black/40 hover:bg-red-500 text-white text-[10px] transition-colors`}
+                  title="삭제"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Time + Unread */}
+            <div className={`flex flex-col ${isAdmin ? 'items-end' : 'items-start'} flex-shrink-0 gap-0.5`}>
+              {unreadCount !== undefined && unreadCount > 0 && (
+                <span className="text-[10px] font-bold text-green-500">{unreadCount}</span>
+              )}
+              <span className="text-[10px] text-gray-400">{formatTime(message.createdAt)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 일반 텍스트 / 비이미지 파일 메시지
   return (
     <div
       className={`flex ${isAdmin ? 'justify-end' : 'justify-start'} mb-1 group`}
@@ -73,32 +153,15 @@ export function ChatBubble({ message, isAdmin, showSender, currentUserId, unread
 
         <div className={`flex items-end gap-1.5 ${isAdmin ? 'flex-row-reverse' : 'flex-row'}`}>
           {/* Bubble */}
-          <div className={`relative px-3 py-2 rounded-2xl text-sm break-words ${
+          <div className={`relative px-3 py-2 rounded-2xl text-sm ${
             isAdmin
               ? 'bg-blue-500 text-white rounded-tr-sm'
               : senderIsAdmin
                 ? 'bg-purple-50 border border-purple-200 text-gray-900 rounded-tl-sm'
                 : 'bg-white border border-gray-200 text-gray-900 rounded-tl-sm'
           }`}>
-            {/* Image inline preview */}
-            {hasImage && (
-              <a
-                href={message.fileUrl!}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block mb-1"
-              >
-                <img
-                  src={message.fileUrl!}
-                  alt={message.fileName || '이미지'}
-                  className="max-w-[240px] max-h-[240px] rounded-lg object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                  onError={() => setImageError(true)}
-                />
-              </a>
-            )}
-
-            {/* Non-image file attachment */}
-            {message.fileUrl && !hasImage && (
+            {/* Non-image file */}
+            {message.fileUrl && (
               <a
                 href={message.fileUrl}
                 target="_blank"
@@ -113,11 +176,14 @@ export function ChatBubble({ message, isAdmin, showSender, currentUserId, unread
             )}
 
             {/* Content */}
-            {message.content && (
-              <p className="whitespace-pre-wrap">{message.content}</p>
+            {hasContent && (
+              <p className="whitespace-pre-wrap"
+                 style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
+                {message.content}
+              </p>
             )}
 
-            {/* Delete button on hover */}
+            {/* Delete button */}
             {showActions && (
               <button
                 onClick={handleDelete}
@@ -129,16 +195,12 @@ export function ChatBubble({ message, isAdmin, showSender, currentUserId, unread
             )}
           </div>
 
-          {/* Time + Unread count */}
+          {/* Time + Unread */}
           <div className={`flex flex-col ${isAdmin ? 'items-end' : 'items-start'} flex-shrink-0 gap-0.5`}>
             {unreadCount !== undefined && unreadCount > 0 && (
-              <span className="text-[10px] font-bold text-green-500">
-                {unreadCount}
-              </span>
+              <span className="text-[10px] font-bold text-green-500">{unreadCount}</span>
             )}
-            <span className="text-[10px] text-gray-400">
-              {formatTime(message.createdAt)}
-            </span>
+            <span className="text-[10px] text-gray-400">{formatTime(message.createdAt)}</span>
           </div>
         </div>
       </div>
