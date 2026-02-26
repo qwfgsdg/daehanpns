@@ -35,6 +35,7 @@ export default function PhoneRegisterPage() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   // 초대 링크에서 추천 코드 파싱
   useEffect(() => {
@@ -114,7 +115,7 @@ export default function PhoneRegisterPage() {
       if (!res.ok) throw new Error('SMS 발송에 실패했습니다.');
 
       setSmsSent(true);
-      alert('인증번호가 발송되었습니다.\n\n개발 모드: 아무 6자리 숫자나 입력하세요.');
+      setSuccessMessage('인증번호가 발송되었습니다.');
     } catch (err: any) {
       setError(err.message || 'SMS 발송에 실패했습니다.');
     } finally {
@@ -141,8 +142,8 @@ export default function PhoneRegisterPage() {
       if (!res.ok) throw new Error('인증번호가 올바르지 않습니다.');
 
       setSmsVerified(true);
+      setSuccessMessage('인증이 완료되었습니다.');
       setStep(1);
-      alert('인증이 완료되었습니다.');
     } catch (err: any) {
       setError(err.message || '인증번호가 올바르지 않습니다.');
     } finally {
@@ -270,8 +271,8 @@ export default function PhoneRegisterPage() {
       // 토큰 저장
       localStorage.setItem('accessToken', result.accessToken);
 
-      alert('회원가입이 완료되었습니다!');
-      router.push('/');
+      setSuccessMessage('회원가입이 완료되었습니다! 잠시 후 메인 페이지로 이동합니다.');
+      setTimeout(() => router.push('/'), 1500);
     } catch (err: any) {
       setError(err.message || '회원가입에 실패했습니다.');
     } finally {
@@ -311,6 +312,12 @@ export default function PhoneRegisterPage() {
             </div>
           )}
 
+          {successMessage && (
+            <div className="mb-4 rounded-md bg-green-50 p-4">
+              <p className="text-sm text-green-800">{successMessage}</p>
+            </div>
+          )}
+
           {/* Step 0: SMS 인증 */}
           {step === 0 && (
             <div>
@@ -322,6 +329,7 @@ export default function PhoneRegisterPage() {
                   <div className="flex gap-2">
                     <input
                       type="tel"
+                      inputMode="numeric"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       placeholder="01012345678"
@@ -344,6 +352,7 @@ export default function PhoneRegisterPage() {
                     <div className="flex gap-2">
                       <input
                         type="text"
+                        inputMode="numeric"
                         value={smsCode}
                         onChange={(e) => setSmsCode(e.target.value)}
                         placeholder="6자리 숫자"

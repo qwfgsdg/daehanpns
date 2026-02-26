@@ -16,7 +16,7 @@ export class FilesService {
         accessKeyId: this.configService.get<string>('AWS_ACCESS_KEY_ID', ''),
         secretAccessKey: this.configService.get<string>('AWS_SECRET_ACCESS_KEY', ''),
       },
-    });
+    } as any);
     this.bucketName = this.configService.get<string>('AWS_S3_BUCKET', 'daehanpns-files');
   }
 

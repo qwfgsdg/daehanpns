@@ -1,45 +1,65 @@
 /**
- * 채팅 타입 정의
+ * 채팅 타입 정의 (백엔드 Prisma 모델 일치)
  */
 
-export type ChatRoomType = '1:1' | '1:N';
+export type ChatRoomType = 'ONE_TO_N' | 'ONE_TO_ONE' | 'TWO_WAY';
 
-export type ChatMemberRole = 'MASTER' | 'LEADER' | 'CO_LEADER' | 'MEMBER';
+export type RoomCategory = 'STOCK' | 'COIN';
+
+export type OwnerType = 'OWNER' | 'VICE_OWNER' | 'MEMBER';
+
+export type SenderType = 'USER' | 'ADMIN';
 
 export type MessageType = 'TEXT' | 'IMAGE' | 'FILE' | 'SYSTEM';
 
 export interface ChatRoom {
   id: string;
   name: string;
-  type: ChatRoomType;          // 1:1 자유 or 1:N 방송
-  isPublic: boolean;           // 공개방 여부
-  masterId: string;            // 마스터 ID
-  leaderIds: string[];         // 방장 IDs
-  coLeaderIds: string[];       // 부방장 IDs
-  memberIds: string[];         // 전체 멤버 IDs
-  notice?: string;             // 공지사항
+  type: ChatRoomType;
+  category: RoomCategory;
+  description?: string;
+  image?: string;
+  isActive: boolean;
+  maxParticipants?: number;
+  participants?: ChatParticipant[];
   lastMessage?: ChatMessage;
   unreadCount: number;
   memberCount: number;
+  notice?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ChatParticipant {
+  id: string;
+  roomId: string;
+  userId: string;
+  ownerType: OwnerType;
+  joinedAt: string;
+  lastReadAt?: string;
+  leftAt?: string;
+  isKicked: boolean;
+  isShadowBanned: boolean;
+  user?: {
+    id: string;
+    name: string;
+    nickname?: string;
+    profileImage?: string;
+  };
 }
 
 export interface ChatMessage {
   id: string;
   roomId: string;
   senderId: string;
-  senderName: string;
-  senderType?: 'USER' | 'ADMIN';
-  senderRole: ChatMemberRole;  // 역할 (뱃지 표시용)
-  type: MessageType;
+  senderType: SenderType;
   content: string;
-  imageUrl?: string;
   fileUrl?: string;
   fileName?: string;
   fileSize?: number;
-  isRead: boolean;
-  reactions?: EmojiReaction[]; // 이모지 반응
+  isDeleted: boolean;
+  type: MessageType;
+  reactions?: EmojiReaction[];
   sender?: {
     id: string;
     name: string;
@@ -50,8 +70,17 @@ export interface ChatMessage {
   updatedAt: string;
 }
 
+export interface ChatPinnedMessage {
+  id: string;
+  roomId: string;
+  messageId: string;
+  content: string;
+  pinnedBy: string;
+  pinnedAt: string;
+}
+
 export interface EmojiReaction {
-  emoji: '👍' | '❤️' | '😊' | '🎉' | '👏';
+  emoji: string;
   userId: string;
   userName: string;
   createdAt: string;
@@ -62,15 +91,6 @@ export interface SystemMessageData {
   userName: string;
   timestamp: string;
   metadata?: Record<string, any>;
-}
-
-export interface ChatMember {
-  userId: string;
-  userName: string;
-  role: ChatMemberRole;
-  profileImage?: string;
-  isOnline: boolean;
-  lastSeenAt?: string;
 }
 
 export interface TypingIndicator {

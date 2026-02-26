@@ -2,10 +2,18 @@ import { Controller, Post, Body, UseGuards, Req, Get, HttpCode, Query, Res } fro
 import { Response } from 'express';
 import { AuthService } from './auth.service';
 import { AuthGuard } from '@nestjs/passport';
+import { ConfigService } from '@nestjs/config';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  private readonly webUrl: string;
+
+  constructor(
+    private authService: AuthService,
+    private configService: ConfigService,
+  ) {
+    this.webUrl = this.configService.get<string>('WEB_URL', '${this.webUrl}');
+  }
 
   // ===== 관리자 로그인 =====
   @Post('admin/login')
@@ -102,14 +110,14 @@ export class AuthController {
         return res.redirect(`daehanpns://register/social?provider=google&data=${userData}`);
       } else {
         // 웹 URL
-        return res.redirect(`http://localhost:3002/register/social?provider=google&data=${userData}`);
+        return res.redirect(`${this.webUrl}/register/social?provider=google&data=${userData}`);
       }
     } else {
       // 기존 회원 → 토큰과 함께 리다이렉트
       if (platform === 'mobile') {
         return res.redirect(`daehanpns://auth/callback?token=${result.accessToken}`);
       } else {
-        return res.redirect(`http://localhost:3002/auth/callback?token=${result.accessToken}`);
+        return res.redirect(`${this.webUrl}/auth/callback?token=${result.accessToken}`);
       }
     }
   }
@@ -143,14 +151,14 @@ export class AuthController {
       if (platform === 'mobile') {
         return res.redirect(`daehanpns://register/social?provider=kakao&data=${userData}`);
       } else {
-        return res.redirect(`http://localhost:3002/register/social?provider=kakao&data=${userData}`);
+        return res.redirect(`${this.webUrl}/register/social?provider=kakao&data=${userData}`);
       }
     } else {
       // 기존 회원 → 토큰과 함께 리다이렉트
       if (platform === 'mobile') {
         return res.redirect(`daehanpns://auth/callback?token=${result.accessToken}`);
       } else {
-        return res.redirect(`http://localhost:3002/auth/callback?token=${result.accessToken}`);
+        return res.redirect(`${this.webUrl}/auth/callback?token=${result.accessToken}`);
       }
     }
   }

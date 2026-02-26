@@ -1,22 +1,23 @@
 import { useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuthStore } from '@/store';
 
 export default function AuthCallbackScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { setToken } = useAuthStore();
 
   useEffect(() => {
     const handleCallback = async () => {
       const token = params.token as string;
 
       if (token) {
-        // 토큰 저장
-        await AsyncStorage.setItem('accessToken', token);
+        // SecureStore에 토큰 저장
+        await setToken(token);
 
-        // 홈으로 이동
-        router.replace('/');
+        // 메인 탭으로 이동
+        router.replace('/(tabs)');
       } else {
         // 토큰이 없으면 로그인 페이지로
         router.replace('/login');

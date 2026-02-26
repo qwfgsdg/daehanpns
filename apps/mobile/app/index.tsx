@@ -1,35 +1,40 @@
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Link } from 'expo-router';
+/**
+ * 스플래시 화면 (앱 시작 시 표시)
+ */
 
-export default function HomeScreen() {
+import { useEffect } from 'react';
+import { View, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
+import { ActivityIndicator, Text } from 'react-native-paper';
+import { useAuth } from '@/hooks';
+import { COLORS } from '@/constants';
+
+export default function SplashScreen() {
+  const { isAuthenticated, isLoading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    const redirect = async () => {
+      // 스플래시 화면 표시 (1초)
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      if (isAuthenticated) {
+        router.replace('/(tabs)');
+      } else {
+        router.replace('/login');
+      }
+    };
+
+    redirect();
+  }, [isLoading, isAuthenticated]);
+
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>대한P&S</Text>
-        <Text style={styles.subtitle}>신뢰와 혁신으로 함께하는 파트너</Text>
-      </View>
-
-      <View style={styles.content}>
-        <Link href="/register" asChild>
-          <TouchableOpacity style={styles.card}>
-            <Text style={styles.cardIcon}>📝</Text>
-            <Text style={styles.cardTitle}>회원가입</Text>
-            <Text style={styles.cardDescription}>
-              대한P&S의 회원이 되어 다양한 서비스를 이용하세요
-            </Text>
-          </TouchableOpacity>
-        </Link>
-
-        <Link href="/login" asChild>
-          <TouchableOpacity style={styles.card}>
-            <Text style={styles.cardIcon}>🔐</Text>
-            <Text style={styles.cardTitle}>로그인</Text>
-            <Text style={styles.cardDescription}>
-              이미 회원이신가요? 로그인하여 서비스를 이용하세요
-            </Text>
-          </TouchableOpacity>
-        </Link>
-      </View>
+      <Text style={styles.title}>대한피앤에스</Text>
+      <Text style={styles.subtitle}>신뢰와 혁신으로 함께하는 파트너</Text>
+      <ActivityIndicator size="large" color="#fff" style={styles.loader} />
     </View>
   );
 }
@@ -37,55 +42,23 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f9ff',
-  },
-  header: {
-    paddingTop: 100,
-    paddingHorizontal: 20,
-    paddingBottom: 40,
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     fontSize: 40,
     fontWeight: 'bold',
-    color: '#111827',
+    color: '#fff',
     marginBottom: 12,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6b7280',
-    textAlign: 'center',
+    color: '#fff',
+    opacity: 0.9,
+    marginBottom: 40,
   },
-  content: {
-    paddingHorizontal: 20,
-    gap: 16,
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  cardIcon: {
-    fontSize: 48,
-    marginBottom: 16,
-  },
-  cardTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 8,
-  },
-  cardDescription: {
-    fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
+  loader: {
+    marginTop: 20,
   },
 });

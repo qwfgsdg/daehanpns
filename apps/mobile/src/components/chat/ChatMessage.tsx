@@ -5,7 +5,7 @@
 import React, { memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
-import { ChatMessage as ChatMessageType } from '@/types';
+import { ChatMessage as ChatMessageType, OwnerType } from '@/types';
 import { RoleBadge } from './RoleBadge';
 import { EmojiReaction } from './EmojiReaction';
 import { SystemMessage } from './SystemMessage';
@@ -18,6 +18,7 @@ interface Props {
   showSender?: boolean; // 같은 사람 연속 메시지는 이름 숨김
   showTime?: boolean; // 같은 분에 보낸 메시지는 시간 숨김
   canReact: boolean;
+  senderRole?: OwnerType; // 참여자 목록에서 전달
   onImagePress?: (imageUrl: string) => void;
 }
 
@@ -27,6 +28,7 @@ const ChatMessageComponent: React.FC<Props> = ({
   showSender = true,
   showTime = true,
   canReact,
+  senderRole = 'MEMBER',
   onImagePress,
 }) => {
   // 시스템 메시지
@@ -34,17 +36,28 @@ const ChatMessageComponent: React.FC<Props> = ({
     return <SystemMessage content={message.content} />;
   }
 
+  // 삭제된 메시지
+  if (message.isDeleted) {
+    return (
+      <View style={[styles.container, isMine && styles.containerMine]}>
+        <View style={[styles.bubble, styles.bubbleDeleted]}>
+          <Text style={styles.deletedText}>삭제된 메시지입니다</Text>
+        </View>
+      </View>
+    );
+  }
+
   // 이미지 메시지
   const renderImage = () => {
-    if (!message.imageUrl) return null;
+    if (message.type !== 'IMAGE' || !message.fileUrl) return null;
 
     return (
       <TouchableOpacity
-        onPress={() => onImagePress?.(message.imageUrl!)}
+        onPress={() => onImagePress?.(message.fileUrl!)}
         activeOpacity={0.9}
       >
         <Image
-          source={{ uri: message.imageUrl }}
+          source={{ uri: message.fileUrl }}
           style={styles.image}
           contentFit="cover"
           transition={200}
@@ -55,7 +68,7 @@ const ChatMessageComponent: React.FC<Props> = ({
 
   // 파일 메시지
   const renderFile = () => {
-    if (!message.fileUrl) return null;
+    if (message.type !== 'FILE' || !message.fileUrl) return null;
 
     return (
       <View style={styles.fileContainer}>
@@ -86,8 +99,8 @@ const ChatMessageComponent: React.FC<Props> = ({
               </View>
             )}
             <RoleBadge
-              role={message.senderRole}
-              userName={message.sender?.name || message.senderName}
+              role={senderRole}
+              userName={message.sender?.name || '알 수 없음'}
               showLabel={false}
             />
           </View>
@@ -131,11 +144,10 @@ const ChatMessageComponent: React.FC<Props> = ({
           )}
         </View>
 
-        {/* 시간 & 읽음 표시 (내 메시지만) */}
+        {/* 시간 (내 메시지) */}
         {isMine && showTime && (
           <View style={styles.timeContainer}>
             <Text style={styles.time}>{formatChatTime(message.createdAt)}</Text>
-            {message.isRead && <Text style={styles.readCheck}>✓✓</Text>}
           </View>
         )}
 
@@ -153,6 +165,7 @@ export const ChatMessage = memo(
   ChatMessageComponent,
   (prev, next) =>
     prev.message.id === next.message.id &&
+    prev.message.isDeleted === next.message.isDeleted &&
     prev.message.reactions?.length === next.message.reactions?.length &&
     prev.isMine === next.isMine &&
     prev.showSender === next.showSender &&
@@ -259,8 +272,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: COLORS.textSecondary,
   },
-  readCheck: {
-    fontSize: 11,
-    color: COLORS.primary,
+  bubbleDeleted: {
+    backgroundColor: COLORS.gray100,
+  },
+  deletedText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    fontStyle: 'italic',
   },
 });

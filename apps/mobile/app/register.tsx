@@ -11,20 +11,27 @@ import {
   Linking,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ApiClient } from '@/lib/api';
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000/api';
+import {
+  register as apiRegister,
+  sendSms,
+  verifySms,
+  validateReferralCode,
+  searchManagers,
+} from '@/lib/api';
+import { useAuthStore } from '@/store';
+import { getErrorMessage } from '@/lib/api';
+import { API_URL } from '@/constants';
 
 type ManagerSearchTab = 'search' | 'code';
 
 export default function RegisterScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { setToken, setUser } = useAuthStore();
   const [step, setStep] = useState(0); // 0: 담당자 선택, 1: SMS 인증, 2: 추가 정보 입력
 
   // 담당자 선택 단계
-  const [managerTab, setManagerTab] = useState<ManagerSearchTab>('search'); // 기본값: 이름 검색
+  const [managerTab, setManagerTab] = useState<ManagerSearchTab>('search');
   const [referralCode, setReferralCode] = useState('');
   const [managerSearchName, setManagerSearchName] = useState('');
   const [selectedManagerId, setSelectedManagerId] = useState('');
@@ -53,7 +60,6 @@ export default function RegisterScreen() {
     if (refCode) {
       setReferralCode(refCode);
       setManagerTab('code');
-      // 자동 검증
       handleAutoValidateCode(refCode);
     }
   }, [params.ref]);
@@ -63,7 +69,7 @@ export default function RegisterScreen() {
 
     setIsLoading(true);
     try {
-      const result = await ApiClient.validateReferralCode(code);
+      const result = await validateReferralCode(code);
       if (result.valid && result.manager) {
         setValidatedManager(result.manager);
         setSelectedManagerId(result.manager.id);
@@ -89,7 +95,7 @@ export default function RegisterScreen() {
 
     setIsLoading(true);
     try {
-      const result = await ApiClient.validateReferralCode(referralCode);
+      const result = await validateReferralCode(referralCode);
       if (result.valid && result.manager) {
         setValidatedManager(result.manager);
         setSelectedManagerId(result.manager.id);
@@ -103,7 +109,7 @@ export default function RegisterScreen() {
         setSelectedManagerId('');
       }
     } catch (err: any) {
-      Alert.alert('오류', err.message || '추천 코드 검증에 실패했습니다.');
+      Alert.alert('오류', getErrorMessage(err));
       setValidatedManager(null);
       setSelectedManagerId('');
     } finally {
@@ -120,13 +126,13 @@ export default function RegisterScreen() {
 
     setIsLoading(true);
     try {
-      const result = await ApiClient.searchManagers(managerSearchName);
+      const result = await searchManagers(managerSearchName);
       setSearchResults(result.managers);
       if (result.managers.length === 0) {
         Alert.alert('알림', '검색 결과가 없습니다.');
       }
     } catch (err: any) {
-      Alert.alert('오류', err.message || '검색에 실패했습니다.');
+      Alert.alert('오류', getErrorMessage(err));
       setSearchResults([]);
     } finally {
       setIsLoading(false);
@@ -161,11 +167,11 @@ export default function RegisterScreen() {
 
     setIsLoading(true);
     try {
-      await ApiClient.sendSms(phone);
+      await sendSms(phone);
       setSmsSent(true);
-      Alert.alert('성공', '인증번호가 발송되었습니다.\n\n개발 모드: 아무 6자리 숫자나 입력하세요.');
+      Alert.alert('성공', '인증번호가 발송되었습니다.');
     } catch (err: any) {
-      Alert.alert('오류', err.message || 'SMS 발송에 실패했습니다.');
+      Alert.alert('오류', getErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
@@ -180,12 +186,12 @@ export default function RegisterScreen() {
 
     setIsLoading(true);
     try {
-      await ApiClient.verifySms(phone, smsCode);
+      await verifySms(phone, smsCode);
       setSmsVerified(true);
       setStep(2);
       Alert.alert('성공', '인증이 완료되었습니다.');
     } catch (err: any) {
-      Alert.alert('오류', err.message || '인증번호가 올바르지 않습니다.');
+      Alert.alert('오류', getErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
@@ -193,7 +199,6 @@ export default function RegisterScreen() {
 
   // 회원가입 완료
   const handleRegister = async () => {
-    // 유효성 검사
     if (!password || password.length < 6) {
       Alert.alert('오류', '비밀번호는 6자 이상이어야 합니다.');
       return;
@@ -218,26 +223,28 @@ export default function RegisterScreen() {
         birthDate: birthDate || undefined,
       };
 
-      // 담당자 정보 추가 (affiliateCode는 백엔드에서 자동 설정)
+      // 담당자 정보 추가
       if (managerTab === 'code' && referralCode) {
         data.referralCode = referralCode;
       } else if (managerTab === 'search' && selectedManagerId) {
         data.managerId = selectedManagerId;
       }
 
-      const result = await ApiClient.register(data);
+      const result = await apiRegister(data);
 
-      // 토큰 저장
-      await AsyncStorage.setItem('accessToken', result.accessToken);
+      // SecureStore에 토큰 저장
+      await setToken(result.accessToken);
+      // 유저 정보 저장
+      setUser(result.user as any);
 
       Alert.alert('성공', '회원가입이 완료되었습니다!', [
         {
           text: '확인',
-          onPress: () => router.replace('/'),
+          onPress: () => router.replace('/(tabs)'),
         },
       ]);
     } catch (err: any) {
-      Alert.alert('오류', err.message || '회원가입에 실패했습니다.');
+      Alert.alert('오류', getErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
@@ -407,7 +414,7 @@ export default function RegisterScreen() {
               {validatedManager && (
                 <View style={styles.managerInfo}>
                   <Text style={styles.managerInfoText}>
-                    ✓ 선택된 담당자: {validatedManager.name}
+                    선택된 담당자: {validatedManager.name}
                     {validatedManager.region && ` (${validatedManager.region})`}
                   </Text>
                 </View>
@@ -438,7 +445,7 @@ export default function RegisterScreen() {
               {validatedManager && (
                 <View style={styles.managerInfo}>
                   <Text style={styles.managerInfoText}>
-                    ✓ 담당자: {validatedManager.name}
+                    담당자: {validatedManager.name}
                     {validatedManager.region && ` (${validatedManager.region})`}
                   </Text>
                 </View>
@@ -509,7 +516,7 @@ export default function RegisterScreen() {
             style={styles.backButton}
             onPress={() => setStep(0)}
           >
-            <Text style={styles.backButtonText}>← 이전</Text>
+            <Text style={styles.backButtonText}>이전</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -619,7 +626,7 @@ export default function RegisterScreen() {
             style={styles.backButton}
             onPress={() => setStep(1)}
           >
-            <Text style={styles.backButtonText}>← 이전</Text>
+            <Text style={styles.backButtonText}>이전</Text>
           </TouchableOpacity>
         </View>
       )}

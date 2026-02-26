@@ -10,16 +10,22 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ApiClient } from '@/lib/api';
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000/api';
+import {
+  completeSocialRegister,
+  sendSms,
+  verifySms,
+  validateReferralCode,
+  searchManagers,
+} from '@/lib/api';
+import { useAuthStore } from '@/store';
+import { getErrorMessage } from '@/lib/api';
 
 type ManagerSearchTab = 'search' | 'code';
 
 export default function SocialRegisterScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { setToken, setUser } = useAuthStore();
 
   const [step, setStep] = useState(0); // 0: 담당자 선택, 1: SMS 인증, 2: 추가 정보 입력
 
@@ -75,7 +81,7 @@ export default function SocialRegisterScreen() {
 
     setIsLoading(true);
     try {
-      const result = await ApiClient.validateReferralCode(referralCode);
+      const result = await validateReferralCode(referralCode);
       if (result.valid && result.manager) {
         setValidatedManager(result.manager);
         setSelectedManagerId(result.manager.id);
@@ -86,7 +92,7 @@ export default function SocialRegisterScreen() {
         setSelectedManagerId('');
       }
     } catch (err: any) {
-      Alert.alert('오류', '추천 코드 검증에 실패했습니다.');
+      Alert.alert('오류', getErrorMessage(err));
       setValidatedManager(null);
       setSelectedManagerId('');
     } finally {
@@ -103,13 +109,13 @@ export default function SocialRegisterScreen() {
 
     setIsLoading(true);
     try {
-      const result = await ApiClient.searchManagers(managerSearchName);
+      const result = await searchManagers(managerSearchName);
       setSearchResults(result.managers);
       if (result.managers.length === 0) {
         Alert.alert('알림', '검색 결과가 없습니다.');
       }
     } catch (err: any) {
-      Alert.alert('오류', '검색에 실패했습니다.');
+      Alert.alert('오류', getErrorMessage(err));
       setSearchResults([]);
     } finally {
       setIsLoading(false);
@@ -141,11 +147,11 @@ export default function SocialRegisterScreen() {
 
     setIsLoading(true);
     try {
-      await ApiClient.sendSms(phone);
+      await sendSms(phone);
       setSmsSent(true);
       Alert.alert('성공', '인증번호가 발송되었습니다.\n\n개발 모드: 아무 6자리 숫자나 입력하세요.');
     } catch (err: any) {
-      Alert.alert('오류', err.message || 'SMS 발송에 실패했습니다.');
+      Alert.alert('오류', getErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
@@ -160,12 +166,12 @@ export default function SocialRegisterScreen() {
 
     setIsLoading(true);
     try {
-      await ApiClient.verifySms(phone, smsCode);
+      await verifySms(phone, smsCode);
       setSmsVerified(true);
       setStep(2);
       Alert.alert('성공', '인증이 완료되었습니다.');
     } catch (err: any) {
-      Alert.alert('오류', err.message || '인증번호가 올바르지 않습니다.');
+      Alert.alert('오류', getErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
@@ -199,29 +205,21 @@ export default function SocialRegisterScreen() {
         data.managerId = selectedManagerId;
       }
 
-      const res = await fetch(`${API_URL}/auth/social/complete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
+      const result = await completeSocialRegister(data);
 
-      const result = await res.json();
-
-      if (!res.ok) {
-        throw new Error(result.message || '회원가입에 실패했습니다.');
-      }
-
-      // 토큰 저장
-      await AsyncStorage.setItem('accessToken', result.accessToken);
+      // SecureStore에 토큰 저장
+      await setToken(result.accessToken);
+      // 유저 정보 저장
+      setUser(result.user as any);
 
       Alert.alert('성공', '회원가입이 완료되었습니다!', [
         {
           text: '확인',
-          onPress: () => router.replace('/'),
+          onPress: () => router.replace('/(tabs)'),
         },
       ]);
     } catch (err: any) {
-      Alert.alert('오류', err.message || '회원가입에 실패했습니다.');
+      Alert.alert('오류', getErrorMessage(err));
     } finally {
       setIsLoading(false);
     }

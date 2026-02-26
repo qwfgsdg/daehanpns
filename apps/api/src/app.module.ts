@@ -18,6 +18,7 @@ import { BannersModule } from './modules/banners/banners.module';
 import { PopupsModule } from './modules/popups/popups.module';
 import { AppVersionsModule } from './modules/app-versions/app-versions.module';
 import { StatsModule } from './stats/stats.module';
+import { UserProfileModule } from './user-profile/user-profile.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { StatsModule } from './stats/stats.module';
     PopupsModule,
     AppVersionsModule,
     StatsModule,
+    UserProfileModule,
   ],
 })
 export class AppModule {}

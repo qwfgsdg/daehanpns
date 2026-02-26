@@ -10,13 +10,14 @@ import {
   Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ApiClient } from '@/lib/api';
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000/api';
+import { login as apiLogin } from '@/lib/api';
+import { useAuthStore } from '@/store';
+import { getErrorMessage } from '@/lib/api';
+import { API_URL } from '@/constants';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { setToken, setUser } = useAuthStore();
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -29,29 +30,24 @@ export default function LoginScreen() {
 
     setIsLoading(true);
     try {
-      const result = await ApiClient.login(phone, password);
+      const result = await apiLogin({ phone, password });
 
-      // 토큰 저장
-      await AsyncStorage.setItem('accessToken', result.accessToken);
+      // SecureStore에 토큰 저장
+      await setToken(result.accessToken);
+      // 유저 정보 저장
+      setUser(result.user as any);
 
-      Alert.alert('성공', '로그인되었습니다!', [
-        {
-          text: '확인',
-          onPress: () => router.replace('/'),
-        },
-      ]);
+      router.replace('/(tabs)');
     } catch (err: any) {
-      Alert.alert('오류', err.message || '로그인에 실패했습니다.');
+      const message = getErrorMessage(err);
+      Alert.alert('오류', message);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleSocialLogin = async (provider: 'google' | 'kakao') => {
-    // 모바일 플랫폼 파라미터 추가
     const authUrl = `${API_URL}/auth/${provider}?platform=mobile`;
-
-    // 브라우저에서 OAuth 페이지 열기
     const supported = await Linking.canOpenURL(authUrl);
     if (supported) {
       await Linking.openURL(authUrl);
