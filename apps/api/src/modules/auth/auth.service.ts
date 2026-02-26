@@ -339,7 +339,19 @@ export class AuthService {
     };
   }
 
-  // ===== SMS 인증번호 발송 (Aligo) =====
+  // ===== SOLAPI 인증 헤더 생성 =====
+  private getSolapiAuthHeader(): string {
+    const apiKey = this.configService.get<string>('SOLAPI_API_KEY');
+    const apiSecret = this.configService.get<string>('SOLAPI_API_SECRET');
+    const date = new Date().toISOString();
+    const salt = crypto.randomBytes(16).toString('hex');
+    const signature = crypto.createHmac('sha256', apiSecret || '')
+      .update(date + salt)
+      .digest('hex');
+    return `HMAC-SHA256 apiKey=${apiKey}, date=${date}, salt=${salt}, signature=${signature}`;
+  }
+
+  // ===== SMS 인증번호 발송 (SOLAPI) =====
   async sendSmsVerification(phone: string) {
     const code = Math.floor(100000 + Math.random() * 900000).toString(); // 6자리 코드
     const cacheKey = `sms_verification:${phone}`;
@@ -358,14 +370,14 @@ export class AuthService {
       console.warn('Redis rate limit check failed:', error.message);
     }
 
-    // Aligo SMS 발송
+    // SOLAPI SMS 발송
     try {
-      const aligoApiId = this.configService.get<string>('ALIGO_API_ID');
-      const aligoApiKey = this.configService.get<string>('ALIGO_API_KEY');
-      const aligoSender = this.configService.get<string>('ALIGO_SENDER');
+      const solapiApiKey = this.configService.get<string>('SOLAPI_API_KEY');
+      const solapiApiSecret = this.configService.get<string>('SOLAPI_API_SECRET');
+      const solapiSender = this.configService.get<string>('SOLAPI_SENDER');
 
       // 개발 환경에서는 실제 SMS 발송 건너뛰기
-      if (process.env.NODE_ENV !== 'production' && (!aligoApiId || !aligoApiKey || aligoApiId.trim() === '' || aligoApiKey.trim() === '')) {
+      if (process.env.NODE_ENV !== 'production' && (!solapiApiKey || !solapiApiSecret || solapiApiKey.trim() === '' || solapiApiSecret.trim() === '')) {
         console.log('🔔 [개발 모드] SMS 인증번호:', code);
 
         // Redis에 인증번호 저장 시도 (5분)
@@ -379,21 +391,25 @@ export class AuthService {
       }
 
       const response = await axios.post(
-        'https://apis.aligo.in/send/',
-        new URLSearchParams({
-          key: aligoApiKey || '',
-          user_id: aligoApiId || '',
-          sender: aligoSender || '',
-          receiver: phone,
-          msg: `[${aligoSender}] 인증번호: ${code}`,
-          testmode_yn: process.env.NODE_ENV === 'development' ? 'Y' : 'N',
-        }).toString(),
+        'https://api.solapi.com/messages/v4/send',
         {
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          message: {
+            to: phone,
+            from: solapiSender || '',
+            text: `[대한피앤에스] 인증번호: ${code}`,
+            type: 'SMS',
+          },
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': this.getSolapiAuthHeader(),
+          },
         },
       );
 
-      if (response.data.result_code !== '1') {
+      if (response.data.statusCode && response.data.statusCode !== '2000') {
+        console.error('SOLAPI 발송 실패:', response.data);
         throw new Error('SMS 발송 실패');
       }
 
@@ -406,7 +422,7 @@ export class AuthService {
 
       return { success: true, message: 'SMS 인증번호가 발송되었습니다.' };
     } catch (error) {
-      console.error('SMS 발송 실패:', error);
+      console.error('SMS 발송 실패:', error.response?.data || error.message);
       throw new BadRequestException('SMS 발송에 실패했습니다.');
     }
   }
