@@ -55,3 +55,5 @@ Thumbs.db
 
 # Prisma
 apps/api/prisma/migrations/*_init/
+apps/api/daehanpns-a5fdf-firebase-adminsdk-fbsvc-1ab61b4533.json
+NUL

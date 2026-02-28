@@ -112,12 +112,36 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const { roomId } = data;
 
     try {
-      // 1. Admin은 무조건 소켓 룸 join (DB 참여자 생성 안 함)
+      // 1. Admin은 무조건 소켓 룸 join + 봇 참여자 생성/재활성화
       if (userType === 'admin') {
         client.join(roomId);
         console.log(`[Socket] admin ${userId} joined room ${roomId}`);
+
+        // 봇 User로 ChatParticipant 생성/재활성화
+        const admin = await this.prisma.admin.findUnique({
+          where: { id: userId },
+          select: { botUserId: true },
+        });
+
+        if (admin?.botUserId) {
+          const existing = await this.prisma.chatParticipant.findUnique({
+            where: { roomId_userId: { roomId, userId: admin.botUserId } },
+          });
+
+          if (!existing) {
+            await this.prisma.chatParticipant.create({
+              data: { roomId, userId: admin.botUserId, ownerType: 'OWNER' },
+            });
+          } else if (existing.leftAt) {
+            await this.prisma.chatParticipant.update({
+              where: { id: existing.id },
+              data: { leftAt: null },
+            });
+          }
+        }
+
         this.server.to(roomId).emit('room:user_joined', {
-          roomId, userId, userType, timestamp: new Date(),
+          roomId, userId: admin?.botUserId || userId, userType: admin?.botUserId ? 'user' : 'admin', timestamp: new Date(),
         });
         return { success: true };
       }
@@ -203,7 +227,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const { userId, userType } = client.data;
     const isAdmin = userType === 'admin';
-    const senderType = isAdmin ? 'ADMIN' : 'USER';
 
     console.log(`[Socket] message:send from ${userType} ${userId} to room ${data.roomId}`);
 
@@ -213,6 +236,23 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       if (!canSend) {
         console.warn(`[Socket] Rate limit exceeded for ${userId}`);
         return { success: false, error: 'Rate limit exceeded' };
+      }
+
+      // 관리자 봇 전환: admin이면 botUserId로 senderId 교체
+      let actualSenderId = userId;
+      let actualSenderType: 'ADMIN' | 'USER' = isAdmin ? 'ADMIN' : 'USER';
+      let usesBotIdentity = false;
+
+      if (isAdmin) {
+        const admin = await this.prisma.admin.findUnique({
+          where: { id: userId },
+          select: { botUserId: true },
+        });
+        if (admin?.botUserId) {
+          actualSenderId = admin.botUserId;
+          actualSenderType = 'USER'; // 봇은 항상 일반 유저로 표시
+          usesBotIdentity = true;
+        }
       }
 
       // Check permissions (new return type)
@@ -227,18 +267,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return { success: false, error: permission.reason };
       }
 
-      // Create message
+      // Create message (봇이면 봇 userId로 저장)
       const message = await this.chatService.createMessage({
         roomId: data.roomId,
-        senderId: userId,
-        senderType,
+        senderId: actualSenderId,
+        senderType: actualSenderType,
         content: data.content,
         fileUrl: data.fileUrl,
         fileName: data.fileName,
       });
 
-      // Resolve sender info for broadcast
-      const senderInfo = await this.resolveSenderInfo(userId, isAdmin);
+      // Resolve sender info for broadcast (봇이면 봇 User 정보로 표시)
+      const senderInfo = await this.resolveSenderInfo(actualSenderId, usesBotIdentity ? false : isAdmin);
 
       const messageWithSender = { ...message, sender: senderInfo };
 

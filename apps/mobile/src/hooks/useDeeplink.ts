@@ -4,9 +4,12 @@
 
 import { useEffect, useState } from 'react';
 import * as Linking from 'expo-linking';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { parseDeeplink, InviteData, DeeplinkData } from '@/lib/auth/deeplink';
 import { useAuthStore } from '@/store';
+
+const INVITE_REF_KEY = 'invite_ref';
 
 export const useDeeplink = () => {
   const router = useRouter();
@@ -51,19 +54,43 @@ export const useDeeplink = () => {
         break;
 
       case 'invite':
-        // 초대 링크 → 회원가입 페이지로 이동
+        // 초대 링크 → AsyncStorage에 저장 후 회원가입 페이지로 이동
         setInviteData(data);
-        router.push('/register');
+        await AsyncStorage.setItem(INVITE_REF_KEY, data.ref);
+        router.push(`/register?ref=${encodeURIComponent(data.ref)}`);
         break;
     }
   };
 
-  const clearInviteData = () => {
+  const clearInviteData = async () => {
     setInviteData(null);
+    await AsyncStorage.removeItem(INVITE_REF_KEY);
   };
 
   return {
     inviteData,
     clearInviteData,
   };
+};
+
+/**
+ * AsyncStorage에서 저장된 초대 코드 읽기
+ */
+export const getStoredInviteRef = async (): Promise<string | null> => {
+  try {
+    return await AsyncStorage.getItem(INVITE_REF_KEY);
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * AsyncStorage에서 초대 코드 삭제
+ */
+export const clearStoredInviteRef = async (): Promise<void> => {
+  try {
+    await AsyncStorage.removeItem(INVITE_REF_KEY);
+  } catch {
+    // ignore
+  }
 };

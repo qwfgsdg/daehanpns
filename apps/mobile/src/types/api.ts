@@ -5,15 +5,17 @@
 
 // 인증 관련
 export interface LoginRequest {
-  phone: string;
+  loginId: string;
   password: string;
 }
 
 export interface LoginResponse {
   accessToken: string;
+  needsLoginIdSetup?: boolean;
   user: {
     id: string;
-    phone: string;
+    loginId?: string;
+    phone?: string;
     name: string;
     nickname?: string;
     managerId?: string;
@@ -22,7 +24,8 @@ export interface LoginResponse {
 }
 
 export interface RegisterRequest {
-  phone: string;
+  loginId: string;
+  phone?: string;
   password: string;
   name: string;
   nickname?: string;
@@ -35,7 +38,9 @@ export interface RegisterRequest {
 export interface SocialCompleteRequest {
   provider: 'GOOGLE' | 'KAKAO';
   providerId: string;
-  phone: string;
+  loginId: string;
+  password: string;
+  phone?: string;
   name: string;
   nickname?: string;
   gender?: 'MALE' | 'FEMALE';
@@ -44,6 +49,11 @@ export interface SocialCompleteRequest {
   profileImage?: string;
   referralCode?: string;
   managerId?: string;
+}
+
+export interface CheckLoginIdResponse {
+  available: boolean;
+  message: string;
 }
 
 export interface SmsResponse {

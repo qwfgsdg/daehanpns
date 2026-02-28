@@ -6,8 +6,7 @@ import * as Linking from 'expo-linking';
 
 export interface InviteData {
   type: 'invite';
-  inviteCode: string;
-  salesId: string;
+  ref: string;
 }
 
 export interface AuthCallbackData {
@@ -25,7 +24,7 @@ export type DeeplinkData = InviteData | AuthCallbackData | SocialRegisterData;
 
 /**
  * 딥링크 URL 파싱
- * daehanpns://register?inviteCode=ABC123&salesId=xxx
+ * daehanpns://register?ref=ABC123
  * daehanpns://auth/callback?token=xxx
  * daehanpns://register/social?provider=google&data=xxx
  */
@@ -51,12 +50,11 @@ export const parseDeeplink = (url: string): DeeplinkData | null => {
       }
     }
 
-    // register → 초대 링크
+    // register → 초대 링크 (ref 파라미터)
     if (hostname === 'register' || fullPath === 'register') {
-      const inviteCode = queryParams?.inviteCode as string;
-      const salesId = queryParams?.salesId as string;
-      if (inviteCode && salesId) {
-        return { type: 'invite', inviteCode, salesId };
+      const ref = queryParams?.ref as string;
+      if (ref) {
+        return { type: 'invite', ref };
       }
     }
 
@@ -86,6 +84,6 @@ export const getInitialDeeplink = async (): Promise<DeeplinkData | null> => {
 /**
  * 딥링크 생성 (공유용)
  */
-export const createInviteLink = (inviteCode: string, salesId: string): string => {
-  return `daehanpns://register?inviteCode=${inviteCode}&salesId=${salesId}`;
+export const createInviteLink = (ref: string): string => {
+  return `daehanpns://register?ref=${ref}`;
 };

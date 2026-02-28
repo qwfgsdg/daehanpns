@@ -13,8 +13,8 @@ import {
 } from 'react-native';
 import { IconButton } from 'react-native-paper';
 import { sendMessage, startTyping, stopTyping } from '@/lib/socket';
-import { COLORS, SPACING, BORDER_RADIUS } from '@/constants';
-import { TYPING_TIMEOUT } from '@/constants';
+import { COLORS, TYPING_TIMEOUT } from '@/constants';
+import { SPACING, BORDER_RADIUS } from '@/theme';
 import { ChatRoomType } from '@/types';
 
 interface Props {
@@ -68,7 +68,7 @@ export const ChatInput: React.FC<Props> = ({
     return (
       <View style={[styles.container, styles.disabled]}>
         <Text style={styles.disabledText}>
-          {roomType === 'ONE_TO_N' ? '방장/부방장만 발언 가능합니다' : '메시지를 보낼 수 없습니다'}
+          {roomType === 'ONE_TO_N' ? '읽기 전용 채팅방입니다' : '메시지를 보낼 수 없습니다'}
         </Text>
       </View>
     );

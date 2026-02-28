@@ -794,6 +794,8 @@ function CreateAdminModal({
     salesName: '',
     tier: 'GENERAL',
     region: '',
+    chatNickname: '',
+    chatProfileImage: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [regionMode, setRegionMode] = useState<'select' | 'custom'>('select');
@@ -838,6 +840,8 @@ function CreateAdminModal({
         salesName: formData.salesName,
         tier: formData.tier,
         region: formData.region,
+        chatNickname: formData.chatNickname || undefined,
+        chatProfileImage: formData.chatProfileImage || undefined,
       });
       alert('관리자가 추가되었습니다.');
       onSuccess();
@@ -977,6 +981,31 @@ function CreateAdminModal({
                 className="mt-2"
               />
             )}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              채팅 닉네임
+            </label>
+            <Input
+              type="text"
+              value={formData.chatNickname}
+              onChange={(e) => setFormData({ ...formData, chatNickname: e.target.value })}
+              placeholder="채팅에서 표시될 닉네임 (미입력시 영업자명 사용)"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              채팅에서 관리자 대신 표시되는 페르소나 닉네임입니다
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              채팅 프로필 이미지 URL
+            </label>
+            <Input
+              type="text"
+              value={formData.chatProfileImage}
+              onChange={(e) => setFormData({ ...formData, chatProfileImage: e.target.value })}
+              placeholder="https://... (선택사항)"
+            />
           </div>
           <div className="flex justify-end gap-2 pt-4">
             <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>

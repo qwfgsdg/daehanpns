@@ -11,17 +11,15 @@ import { ChatRoom, ChatMessage, GetMessagesQuery } from '@/types';
  */
 export const getChatRooms = async (): Promise<ChatRoom[]> => {
   const response = await apiClient.get('/chat/rooms');
-  return response.data || [];
+  return response.data?.rooms || response.data || [];
 };
 
 /**
  * 공개 채팅방 목록 조회
  */
 export const getPublicChatRooms = async (): Promise<ChatRoom[]> => {
-  const response = await apiClient.get('/chat/rooms', {
-    params: { type: 'public' },
-  });
-  return response.data || [];
+  const response = await apiClient.get('/chat/rooms/public');
+  return response.data?.rooms || response.data || [];
 };
 
 /**

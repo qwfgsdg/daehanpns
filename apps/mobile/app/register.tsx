@@ -8,27 +8,48 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
-  Linking,
 } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+import { makeRedirectUri } from 'expo-auth-session';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import {
   register as apiRegister,
+  completeSocialRegister,
   sendSms,
   verifySms,
   validateReferralCode,
   searchManagers,
+  socialLogin,
+  checkLoginId,
 } from '@/lib/api';
 import { useAuthStore } from '@/store';
 import { getErrorMessage } from '@/lib/api';
-import { API_URL } from '@/constants';
+import { API_URL, GOOGLE_CLIENT_ID, KAKAO_CLIENT_ID } from '@/constants';
+import { getStoredInviteRef, clearStoredInviteRef } from '@/hooks/useDeeplink';
+
+WebBrowser.maybeCompleteAuthSession();
 
 type ManagerSearchTab = 'search' | 'code';
+type SignupMethod = 'google' | 'kakao' | 'phone' | null;
 
 export default function RegisterScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { setToken, setUser } = useAuthStore();
-  const [step, setStep] = useState(0); // 0: 담당자 선택, 1: SMS 인증, 2: 추가 정보 입력
+
+  // Step 0: 가입 방법 선택, Step 1: 담당자 선택, Step 2: 회원정보 입력
+  const [step, setStep] = useState(0);
+  const [signupMethod, setSignupMethod] = useState<SignupMethod>(null);
+
+  // 소셜 데이터 (구글/카카오 가입 시)
+  const [socialData, setSocialData] = useState<any>(null);
+  const [socialProvider, setSocialProvider] = useState<'google' | 'kakao' | null>(null);
+
+  // SMS 인증 (전화번호 가입 시)
+  const [phone, setPhone] = useState('');
+  const [smsCode, setSmsCode] = useState('');
+  const [smsSent, setSmsSent] = useState(false);
+  const [smsVerified, setSmsVerified] = useState(false);
 
   // 담당자 선택 단계
   const [managerTab, setManagerTab] = useState<ManagerSearchTab>('search');
@@ -37,14 +58,12 @@ export default function RegisterScreen() {
   const [selectedManagerId, setSelectedManagerId] = useState('');
   const [validatedManager, setValidatedManager] = useState<any>(null);
   const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isInviteReadOnly, setIsInviteReadOnly] = useState(false);
 
-  // SMS 인증 단계
-  const [phone, setPhone] = useState('');
-  const [smsCode, setSmsCode] = useState('');
-  const [smsSent, setSmsSent] = useState(false);
-  const [smsVerified, setSmsVerified] = useState(false);
-
-  // 추가 정보 입력 단계
+  // 회원정보 입력 단계
+  const [loginId, setLoginId] = useState('');
+  const [isLoginIdChecked, setIsLoginIdChecked] = useState(false);
+  const [isLoginIdAvailable, setIsLoginIdAvailable] = useState(false);
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [name, setName] = useState('');
@@ -54,108 +73,149 @@ export default function RegisterScreen() {
 
   const [isLoading, setIsLoading] = useState(false);
 
-  // 초대링크 처리 (ref 파라미터)
+  // 소셜 로그인 파라미터 처리 (login.tsx에서 넘어온 경우)
+  useEffect(() => {
+    const sp = params.socialProvider as string | undefined;
+    const sd = params.socialData as string | undefined;
+
+    if (sp && sd) {
+      try {
+        const parsed = JSON.parse(sd);
+        setSocialProvider(sp as 'google' | 'kakao');
+        setSocialData(parsed);
+        setSignupMethod(sp as 'google' | 'kakao');
+        setName(parsed.name || '');
+        setStep(1); // 담당자 선택으로 바로 이동
+      } catch (err) {
+        Alert.alert('오류', 'SNS 정보를 불러올 수 없습니다.');
+      }
+    }
+  }, [params.socialProvider, params.socialData]);
+
+  // 초대링크 처리 (ref 파라미터 또는 AsyncStorage)
   useEffect(() => {
     const refCode = params.ref as string | undefined;
     if (refCode) {
       setReferralCode(refCode);
       setManagerTab('code');
+      setIsInviteReadOnly(true);
       handleAutoValidateCode(refCode);
+    } else {
+      // AsyncStorage에서 저장된 초대 코드 확인
+      getStoredInviteRef().then((storedRef) => {
+        if (storedRef) {
+          setReferralCode(storedRef);
+          setManagerTab('code');
+          setIsInviteReadOnly(true);
+          handleAutoValidateCode(storedRef);
+        }
+      });
     }
   }, [params.ref]);
 
   const handleAutoValidateCode = async (code: string) => {
     if (!code) return;
-
     setIsLoading(true);
     try {
       const result = await validateReferralCode(code);
       if (result.valid && result.manager) {
         setValidatedManager(result.manager);
         setSelectedManagerId(result.manager.id);
-        Alert.alert(
-          '초대링크 확인',
-          `담당자: ${result.manager.name} (${result.manager.region || '지역 없음'})\n\n다음 단계로 진행하시겠습니까?`,
-          [{ text: '확인' }]
-        );
       }
     } catch (err: any) {
       Alert.alert('오류', '초대링크가 유효하지 않습니다.');
+      setIsInviteReadOnly(false);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // 추천 코드 검증
-  const handleValidateCode = async () => {
-    if (!referralCode) {
-      Alert.alert('오류', '추천 코드를 입력해주세요.');
-      return;
-    }
+  // === Step 0: 가입 방법 선택 ===
 
+  // Google 로그인
+  const handleGoogleSignup = async () => {
+    const appReturnUrl = makeRedirectUri({ scheme: 'daehanpns', path: 'oauth/google' });
+    const googleRedirectUri = `${API_URL}/auth/google/mobile/redirect`;
+
+    const authUrl =
+      `https://accounts.google.com/o/oauth2/v2/auth` +
+      `?client_id=${GOOGLE_CLIENT_ID}` +
+      `&redirect_uri=${encodeURIComponent(googleRedirectUri)}` +
+      `&response_type=code` +
+      `&scope=${encodeURIComponent('openid email profile')}` +
+      `&state=${encodeURIComponent(appReturnUrl)}`;
+
+    const result = await WebBrowser.openAuthSessionAsync(authUrl, appReturnUrl);
+
+    if (result.type === 'success' && result.url) {
+      const codeMatch = result.url.match(/[?&]code=([^&]+)/);
+      const code = codeMatch ? codeMatch[1] : null;
+      if (code) {
+        await handleSocialAuth('google', { code, redirectUri: googleRedirectUri });
+      }
+    }
+  };
+
+  // Kakao 로그인
+  const handleKakaoSignup = async () => {
+    const appReturnUrl = makeRedirectUri({ scheme: 'daehanpns', path: 'oauth/kakao' });
+    const kakaoRedirectUri = `${API_URL}/auth/kakao/mobile/redirect`;
+
+    const authUrl =
+      `https://kauth.kakao.com/oauth/authorize` +
+      `?client_id=${KAKAO_CLIENT_ID}` +
+      `&redirect_uri=${encodeURIComponent(kakaoRedirectUri)}` +
+      `&response_type=code` +
+      `&state=${encodeURIComponent(appReturnUrl)}`;
+
+    const result = await WebBrowser.openAuthSessionAsync(authUrl, appReturnUrl);
+
+    if (result.type === 'success' && result.url) {
+      const codeMatch = result.url.match(/[?&]code=([^&]+)/);
+      const code = codeMatch ? codeMatch[1] : null;
+      if (code) {
+        await handleSocialAuth('kakao', { code, redirectUri: kakaoRedirectUri });
+      }
+    }
+  };
+
+  const handleSocialAuth = async (
+    provider: 'google' | 'kakao',
+    data: { code: string; redirectUri: string },
+  ) => {
     setIsLoading(true);
     try {
-      const result = await validateReferralCode(referralCode);
-      if (result.valid && result.manager) {
-        setValidatedManager(result.manager);
-        setSelectedManagerId(result.manager.id);
-        Alert.alert(
-          '확인 완료',
-          `담당자: ${result.manager.name} (${result.manager.region || '지역 없음'})`
-        );
+      const result = await socialLogin({ provider, ...data });
+
+      if (result.isNewUser) {
+        const sData = result.googleUser || result.kakaoUser;
+        if (!sData) {
+          Alert.alert('오류', '소셜 계정 정보를 가져올 수 없습니다.');
+          return;
+        }
+        setSocialProvider(provider);
+        setSocialData(sData);
+        setSignupMethod(provider);
+        setName(sData.name || '');
+        setStep(1); // 담당자 선택으로 이동
       } else {
-        Alert.alert('오류', result.message || '유효하지 않은 추천 코드입니다.');
-        setValidatedManager(null);
-        setSelectedManagerId('');
+        // 기존 유저
+        await setToken(result.accessToken);
+        setUser(result.user);
+        Alert.alert('알림', '이미 가입된 계정입니다. 로그인되었습니다.', [
+          { text: '확인', onPress: () => router.replace('/(tabs)') },
+        ]);
       }
     } catch (err: any) {
       Alert.alert('오류', getErrorMessage(err));
-      setValidatedManager(null);
-      setSelectedManagerId('');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // 담당자 이름 검색
-  const handleSearchManagers = async () => {
-    if (!managerSearchName || managerSearchName.length < 2) {
-      Alert.alert('오류', '최소 2자 이상 입력해주세요.');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const result = await searchManagers(managerSearchName);
-      setSearchResults(result.managers);
-      if (result.managers.length === 0) {
-        Alert.alert('알림', '검색 결과가 없습니다.');
-      }
-    } catch (err: any) {
-      Alert.alert('오류', getErrorMessage(err));
-      setSearchResults([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // 담당자 선택
-  const handleSelectManager = (manager: any) => {
-    setSelectedManagerId(manager.id);
-    setValidatedManager(manager);
-    Alert.alert(
-      '담당자 선택',
-      `${manager.name} (${manager.region || '지역 없음'}) 님을 선택하셨습니다.`
-    );
-  };
-
-  // Step 0 → Step 1: 담당자 선택 완료
-  const handleManagerNext = () => {
-    if (!selectedManagerId) {
-      Alert.alert('오류', '담당자를 선택해주세요.');
-      return;
-    }
-    setStep(1);
+  // 전화번호 가입 선택
+  const handlePhoneSignup = () => {
+    setSignupMethod('phone');
   };
 
   // SMS 인증번호 발송
@@ -164,7 +224,6 @@ export default function RegisterScreen() {
       Alert.alert('오류', '올바른 전화번호를 입력해주세요.');
       return;
     }
-
     setIsLoading(true);
     try {
       await sendSms(phone);
@@ -183,12 +242,11 @@ export default function RegisterScreen() {
       Alert.alert('오류', '6자리 인증번호를 입력해주세요.');
       return;
     }
-
     setIsLoading(true);
     try {
       await verifySms(phone, smsCode);
       setSmsVerified(true);
-      setStep(2);
+      setStep(1); // 담당자 선택으로 이동
       Alert.alert('성공', '인증이 완료되었습니다.');
     } catch (err: any) {
       Alert.alert('오류', getErrorMessage(err));
@@ -197,8 +255,97 @@ export default function RegisterScreen() {
     }
   };
 
-  // 회원가입 완료
+  // === Step 1: 담당자 선택 ===
+
+  const handleValidateCode = async () => {
+    if (!referralCode) {
+      Alert.alert('오류', '추천 코드를 입력해주세요.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const result = await validateReferralCode(referralCode);
+      if (result.valid && result.manager) {
+        setValidatedManager(result.manager);
+        setSelectedManagerId(result.manager.id);
+        Alert.alert('확인 완료', `담당자: ${result.manager.name} (${result.manager.region || '지역 없음'})`);
+      } else {
+        Alert.alert('오류', result.message || '유효하지 않은 추천 코드입니다.');
+        setValidatedManager(null);
+        setSelectedManagerId('');
+      }
+    } catch (err: any) {
+      Alert.alert('오류', getErrorMessage(err));
+      setValidatedManager(null);
+      setSelectedManagerId('');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSearchManagers = async () => {
+    if (!managerSearchName || managerSearchName.length < 2) {
+      Alert.alert('오류', '최소 2자 이상 입력해주세요.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const result = await searchManagers(managerSearchName);
+      setSearchResults(result.managers);
+      if (result.managers.length === 0) {
+        Alert.alert('알림', '검색 결과가 없습니다.');
+      }
+    } catch (err: any) {
+      Alert.alert('오류', getErrorMessage(err));
+      setSearchResults([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSelectManager = (manager: any) => {
+    setSelectedManagerId(manager.id);
+    setValidatedManager(manager);
+    Alert.alert('담당자 선택', `${manager.name} (${manager.region || '지역 없음'}) 님을 선택하셨습니다.`);
+  };
+
+  const handleManagerNext = () => {
+    if (!selectedManagerId) {
+      Alert.alert('오류', '담당자를 선택해주세요.');
+      return;
+    }
+    setStep(2);
+  };
+
+  // === Step 2: 회원정보 입력 ===
+
+  const handleCheckLoginId = async () => {
+    if (!loginId || loginId.length < 4) {
+      Alert.alert('오류', '아이디는 4자 이상이어야 합니다.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const result = await checkLoginId(loginId);
+      setIsLoginIdChecked(true);
+      setIsLoginIdAvailable(result.available);
+      if (result.available) {
+        Alert.alert('확인', '사용 가능한 아이디입니다.');
+      } else {
+        Alert.alert('오류', result.message);
+      }
+    } catch (err: any) {
+      Alert.alert('오류', getErrorMessage(err));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleRegister = async () => {
+    if (!isLoginIdChecked || !isLoginIdAvailable) {
+      Alert.alert('오류', '아이디 중복확인을 해주세요.');
+      return;
+    }
     if (!password || password.length < 6) {
       Alert.alert('오류', '비밀번호는 6자 이상이어야 합니다.');
       return;
@@ -214,34 +361,59 @@ export default function RegisterScreen() {
 
     setIsLoading(true);
     try {
-      const data: any = {
-        phone,
-        password,
-        name,
-        nickname: nickname || undefined,
-        gender: gender || undefined,
-        birthDate: birthDate || undefined,
-      };
+      let result;
 
-      // 담당자 정보 추가
-      if (managerTab === 'code' && referralCode) {
-        data.referralCode = referralCode;
-      } else if (managerTab === 'search' && selectedManagerId) {
-        data.managerId = selectedManagerId;
+      if (signupMethod === 'google' || signupMethod === 'kakao') {
+        // 소셜 가입
+        const data: any = {
+          provider: socialProvider!.toUpperCase(),
+          providerId: socialData.providerId,
+          loginId,
+          password,
+          name,
+          nickname: nickname || undefined,
+          gender: gender || undefined,
+          birthDate: birthDate || undefined,
+          email: socialData.email,
+          profileImage: socialData.profileImage,
+        };
+
+        if (managerTab === 'code' && referralCode) {
+          data.referralCode = referralCode;
+        } else if (selectedManagerId) {
+          data.managerId = selectedManagerId;
+        }
+
+        result = await completeSocialRegister(data);
+      } else {
+        // 전화번호 가입
+        const data: any = {
+          loginId,
+          phone,
+          password,
+          name,
+          nickname: nickname || undefined,
+          gender: gender || undefined,
+          birthDate: birthDate || undefined,
+        };
+
+        if (managerTab === 'code' && referralCode) {
+          data.referralCode = referralCode;
+        } else if (selectedManagerId) {
+          data.managerId = selectedManagerId;
+        }
+
+        result = await apiRegister(data);
       }
 
-      const result = await apiRegister(data);
-
-      // SecureStore에 토큰 저장
       await setToken(result.accessToken);
-      // 유저 정보 저장
       setUser(result.user as any);
 
+      // 초대 코드 정리
+      await clearStoredInviteRef();
+
       Alert.alert('성공', '회원가입이 완료되었습니다!', [
-        {
-          text: '확인',
-          onPress: () => router.replace('/(tabs)'),
-        },
+        { text: '확인', onPress: () => router.replace('/(tabs)') },
       ]);
     } catch (err: any) {
       Alert.alert('오류', getErrorMessage(err));
@@ -251,23 +423,16 @@ export default function RegisterScreen() {
   };
 
   // 진행 상황 표시
+  const stepLabels = ['가입 방법', '담당자 선택', '정보 입력'];
   const renderProgress = () => (
     <View style={styles.progressBar}>
-      <View style={[styles.progressStep, step >= 0 && styles.progressStepActive]}>
-        <Text style={[styles.progressText, step >= 0 && styles.progressTextActive]}>
-          담당자 선택
-        </Text>
-      </View>
-      <View style={[styles.progressStep, step >= 1 && styles.progressStepActive]}>
-        <Text style={[styles.progressText, step >= 1 && styles.progressTextActive]}>
-          전화번호 인증
-        </Text>
-      </View>
-      <View style={[styles.progressStep, step >= 2 && styles.progressStepActive]}>
-        <Text style={[styles.progressText, step >= 2 && styles.progressTextActive]}>
-          정보 입력
-        </Text>
-      </View>
+      {stepLabels.map((label, i) => (
+        <View key={i} style={[styles.progressStep, step >= i && styles.progressStepActive]}>
+          <Text style={[styles.progressText, step >= i && styles.progressTextActive]}>
+            {label}
+          </Text>
+        </View>
+      ))}
     </View>
   );
 
@@ -280,191 +445,47 @@ export default function RegisterScreen() {
 
       {renderProgress()}
 
-      {/* SNS 간편 가입 */}
-      {step === 0 && (
+      {/* Step 0: 가입 방법 선택 */}
+      {step === 0 && !signupMethod && (
         <View style={styles.section}>
-          <Text style={styles.description}>SNS 계정으로 간편하게 가입하세요</Text>
-          <View style={styles.socialButtons}>
+          <Text style={styles.sectionTitle}>가입 방법을 선택하세요</Text>
+
+          <View style={styles.signupMethods}>
             <TouchableOpacity
               style={styles.googleButton}
-              onPress={async () => {
-                const authUrl = `${API_URL}/auth/google?platform=mobile`;
-                const supported = await Linking.canOpenURL(authUrl);
-                if (supported) {
-                  await Linking.openURL(authUrl);
-                } else {
-                  Alert.alert('오류', 'OAuth 페이지를 열 수 없습니다.');
-                }
-              }}
+              onPress={handleGoogleSignup}
+              disabled={isLoading}
             >
               <Text style={styles.socialButtonText}>구글로 가입하기</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.kakaoButton}
-              onPress={async () => {
-                const authUrl = `${API_URL}/auth/kakao?platform=mobile`;
-                const supported = await Linking.canOpenURL(authUrl);
-                if (supported) {
-                  await Linking.openURL(authUrl);
-                } else {
-                  Alert.alert('오류', 'OAuth 페이지를 열 수 없습니다.');
-                }
-              }}
+              onPress={handleKakaoSignup}
+              disabled={isLoading}
             >
               <Text style={styles.kakaoButtonText}>카카오로 가입하기</Text>
             </TouchableOpacity>
-          </View>
 
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>또는 일반 회원가입</Text>
-            <View style={styles.dividerLine} />
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>또는</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <TouchableOpacity
+              style={styles.phoneButton}
+              onPress={handlePhoneSignup}
+              disabled={isLoading}
+            >
+              <Text style={styles.phoneButtonText}>전화번호로 가입하기</Text>
+            </TouchableOpacity>
           </View>
         </View>
       )}
 
-      {/* Step 0: 담당자 선택 */}
-      {step === 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>담당자 선택</Text>
-          <Text style={styles.description}>
-            담당자를 선택하는 방법은 두 가지입니다. 하나만 선택하세요.
-          </Text>
-
-          {/* 탭 버튼 */}
-          <View style={styles.tabButtons}>
-            <TouchableOpacity
-              style={[styles.tabButton, managerTab === 'search' && styles.tabButtonActive]}
-              onPress={() => {
-                setManagerTab('search');
-                setReferralCode('');
-                setValidatedManager(null);
-                setSelectedManagerId('');
-              }}
-            >
-              <Text
-                style={[
-                  styles.tabButtonText,
-                  managerTab === 'search' && styles.tabButtonTextActive,
-                ]}
-              >
-                이름으로 찾기
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tabButton, managerTab === 'code' && styles.tabButtonActive]}
-              onPress={() => {
-                setManagerTab('code');
-                setManagerSearchName('');
-                setSearchResults([]);
-                setValidatedManager(null);
-                setSelectedManagerId('');
-              }}
-            >
-              <Text
-                style={[styles.tabButtonText, managerTab === 'code' && styles.tabButtonTextActive]}
-              >
-                추천코드
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* 이름으로 찾기 */}
-          {managerTab === 'search' && (
-            <View style={styles.tabContent}>
-              <Text style={styles.label}>담당자 이름</Text>
-              <View style={styles.row}>
-                <TextInput
-                  style={[styles.input, styles.flexInput]}
-                  value={managerSearchName}
-                  onChangeText={setManagerSearchName}
-                  placeholder="최소 2자 이상 입력"
-                />
-                <TouchableOpacity
-                  style={styles.button}
-                  onPress={handleSearchManagers}
-                  disabled={isLoading}
-                >
-                  <Text style={styles.buttonText}>검색</Text>
-                </TouchableOpacity>
-              </View>
-
-              {searchResults.length > 0 && (
-                <View style={styles.searchResults}>
-                  {searchResults.map((manager) => (
-                    <TouchableOpacity
-                      key={manager.id}
-                      style={[
-                        styles.managerItem,
-                        selectedManagerId === manager.id && styles.managerItemSelected,
-                      ]}
-                      onPress={() => handleSelectManager(manager)}
-                    >
-                      <Text style={styles.managerName}>{manager.name}</Text>
-                      <Text style={styles.managerDetails}>
-                        {manager.region || '지역 없음'} · {manager.tier}
-                        {manager.referralCode && ` · ${manager.referralCode}`}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-
-              {validatedManager && (
-                <View style={styles.managerInfo}>
-                  <Text style={styles.managerInfoText}>
-                    선택된 담당자: {validatedManager.name}
-                    {validatedManager.region && ` (${validatedManager.region})`}
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* 추천코드 */}
-          {managerTab === 'code' && (
-            <View style={styles.tabContent}>
-              <Text style={styles.label}>추천 코드</Text>
-              <View style={styles.row}>
-                <TextInput
-                  style={[styles.input, styles.flexInput]}
-                  value={referralCode}
-                  onChangeText={(text) => setReferralCode(text.toUpperCase())}
-                  placeholder="INT001, CEO001..."
-                  autoCapitalize="characters"
-                />
-                <TouchableOpacity
-                  style={styles.button}
-                  onPress={handleValidateCode}
-                  disabled={isLoading}
-                >
-                  <Text style={styles.buttonText}>확인</Text>
-                </TouchableOpacity>
-              </View>
-              {validatedManager && (
-                <View style={styles.managerInfo}>
-                  <Text style={styles.managerInfoText}>
-                    담당자: {validatedManager.name}
-                    {validatedManager.region && ` (${validatedManager.region})`}
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
-
-          <TouchableOpacity
-            style={[styles.nextButton, !selectedManagerId && styles.buttonDisabled]}
-            onPress={handleManagerNext}
-            disabled={!selectedManagerId}
-          >
-            <Text style={styles.nextButtonText}>다음</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Step 1: SMS 인증 */}
-      {step === 1 && (
+      {/* Step 0: 전화번호 SMS 인증 (인라인) */}
+      {step === 0 && signupMethod === 'phone' && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>전화번호 인증</Text>
 
@@ -514,17 +535,182 @@ export default function RegisterScreen() {
 
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => setStep(0)}
+            onPress={() => {
+              setSignupMethod(null);
+              setPhone('');
+              setSmsCode('');
+              setSmsSent(false);
+              setSmsVerified(false);
+            }}
           >
+            <Text style={styles.backButtonText}>다른 방법으로 가입</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Step 1: 담당자 선택 */}
+      {step === 1 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>담당자 선택</Text>
+          <Text style={styles.description}>
+            담당자를 선택하는 방법은 두 가지입니다. 하나만 선택하세요.
+          </Text>
+
+          {/* 탭 버튼 */}
+          <View style={styles.tabButtons}>
+            <TouchableOpacity
+              style={[styles.tabButton, managerTab === 'search' && styles.tabButtonActive]}
+              onPress={() => {
+                if (isInviteReadOnly) return;
+                setManagerTab('search');
+                setReferralCode('');
+                setValidatedManager(null);
+                setSelectedManagerId('');
+              }}
+              disabled={isInviteReadOnly}
+            >
+              <Text style={[styles.tabButtonText, managerTab === 'search' && styles.tabButtonTextActive]}>
+                이름으로 찾기
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tabButton, managerTab === 'code' && styles.tabButtonActive]}
+              onPress={() => {
+                if (isInviteReadOnly) return;
+                setManagerTab('code');
+                setManagerSearchName('');
+                setSearchResults([]);
+                setValidatedManager(null);
+                setSelectedManagerId('');
+              }}
+              disabled={isInviteReadOnly}
+            >
+              <Text style={[styles.tabButtonText, managerTab === 'code' && styles.tabButtonTextActive]}>
+                추천코드
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* 이름으로 찾기 */}
+          {managerTab === 'search' && (
+            <View style={styles.tabContent}>
+              <Text style={styles.label}>담당자 이름</Text>
+              <View style={styles.row}>
+                <TextInput
+                  style={[styles.input, styles.flexInput]}
+                  value={managerSearchName}
+                  onChangeText={setManagerSearchName}
+                  placeholder="최소 2자 이상 입력"
+                />
+                <TouchableOpacity style={styles.button} onPress={handleSearchManagers} disabled={isLoading}>
+                  <Text style={styles.buttonText}>검색</Text>
+                </TouchableOpacity>
+              </View>
+
+              {searchResults.length > 0 && (
+                <View style={styles.searchResults}>
+                  {searchResults.map((manager) => (
+                    <TouchableOpacity
+                      key={manager.id}
+                      style={[styles.managerItem, selectedManagerId === manager.id && styles.managerItemSelected]}
+                      onPress={() => handleSelectManager(manager)}
+                    >
+                      <Text style={styles.managerName}>{manager.name}</Text>
+                      <Text style={styles.managerDetails}>
+                        {manager.region || '지역 없음'} · {manager.tier}
+                        {manager.referralCode && ` · ${manager.referralCode}`}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              {validatedManager && (
+                <View style={styles.managerInfo}>
+                  <Text style={styles.managerInfoText}>
+                    선택된 담당자: {validatedManager.name}
+                    {validatedManager.region && ` (${validatedManager.region})`}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* 추천코드 */}
+          {managerTab === 'code' && (
+            <View style={styles.tabContent}>
+              <Text style={styles.label}>추천 코드</Text>
+              <View style={styles.row}>
+                <TextInput
+                  style={[styles.input, styles.flexInput, isInviteReadOnly && styles.inputDisabled]}
+                  value={referralCode}
+                  onChangeText={(text) => setReferralCode(text.toUpperCase())}
+                  placeholder="INT001, CEO001..."
+                  autoCapitalize="characters"
+                  editable={!isInviteReadOnly}
+                />
+                {!isInviteReadOnly && (
+                  <TouchableOpacity style={styles.button} onPress={handleValidateCode} disabled={isLoading}>
+                    <Text style={styles.buttonText}>확인</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              {validatedManager && (
+                <View style={styles.managerInfo}>
+                  <Text style={styles.managerInfoText}>
+                    담당자: {validatedManager.name}
+                    {validatedManager.region && ` (${validatedManager.region})`}
+                    {isInviteReadOnly && ' (초대링크)'}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={[styles.nextButton, !selectedManagerId && styles.buttonDisabled]}
+            onPress={handleManagerNext}
+            disabled={!selectedManagerId}
+          >
+            <Text style={styles.nextButtonText}>다음</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.backButton} onPress={() => setStep(0)}>
             <Text style={styles.backButtonText}>이전</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      {/* Step 2: 추가 정보 입력 */}
+      {/* Step 2: 회원정보 입력 */}
       {step === 2 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>추가 정보 입력</Text>
+          <Text style={styles.sectionTitle}>회원정보 입력</Text>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>아이디 *</Text>
+            <View style={styles.row}>
+              <TextInput
+                style={[styles.input, styles.flexInput]}
+                value={loginId}
+                onChangeText={(text) => {
+                  setLoginId(text);
+                  setIsLoginIdChecked(false);
+                  setIsLoginIdAvailable(false);
+                }}
+                placeholder="4자 이상 입력"
+                autoCapitalize="none"
+              />
+              <TouchableOpacity
+                style={[styles.button, isLoginIdAvailable && styles.buttonSuccess]}
+                onPress={handleCheckLoginId}
+                disabled={isLoading}
+              >
+                <Text style={styles.buttonText}>
+                  {isLoginIdAvailable ? '확인됨' : '중복확인'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>비밀번호 *</Text>
@@ -551,11 +737,15 @@ export default function RegisterScreen() {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>이름 *</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, (signupMethod === 'google' || signupMethod === 'kakao') && styles.inputDisabled]}
               value={name}
               onChangeText={setName}
               placeholder="홍길동"
+              editable={signupMethod === 'phone'}
             />
+            {(signupMethod === 'google' || signupMethod === 'kakao') && (
+              <Text style={styles.helperText}>SNS에서 가져온 정보입니다</Text>
+            )}
           </View>
 
           <View style={styles.inputGroup}>
@@ -575,12 +765,7 @@ export default function RegisterScreen() {
                 style={[styles.genderButton, gender === 'MALE' && styles.genderButtonActive]}
                 onPress={() => setGender('MALE')}
               >
-                <Text
-                  style={[
-                    styles.genderButtonText,
-                    gender === 'MALE' && styles.genderButtonTextActive,
-                  ]}
-                >
+                <Text style={[styles.genderButtonText, gender === 'MALE' && styles.genderButtonTextActive]}>
                   남성
                 </Text>
               </TouchableOpacity>
@@ -588,12 +773,7 @@ export default function RegisterScreen() {
                 style={[styles.genderButton, gender === 'FEMALE' && styles.genderButtonActive]}
                 onPress={() => setGender('FEMALE')}
               >
-                <Text
-                  style={[
-                    styles.genderButtonText,
-                    gender === 'FEMALE' && styles.genderButtonTextActive,
-                  ]}
-                >
+                <Text style={[styles.genderButtonText, gender === 'FEMALE' && styles.genderButtonTextActive]}>
                   여성
                 </Text>
               </TouchableOpacity>
@@ -622,10 +802,7 @@ export default function RegisterScreen() {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => setStep(1)}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={() => setStep(1)}>
             <Text style={styles.backButtonText}>이전</Text>
           </TouchableOpacity>
         </View>
@@ -640,7 +817,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
   },
   header: {
-    paddingTop: 60,
+    paddingTop: 20,
     paddingHorizontal: 20,
     paddingBottom: 20,
     backgroundColor: '#fff',
@@ -698,6 +875,60 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     marginBottom: 20,
   },
+  signupMethods: {
+    marginTop: 16,
+    gap: 12,
+  },
+  googleButton: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  socialButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  kakaoButton: {
+    backgroundColor: '#FEE500',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  kakaoButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#000000',
+  },
+  phoneButton: {
+    backgroundColor: '#2563eb',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  phoneButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 8,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#e5e7eb',
+  },
+  dividerText: {
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: '#6b7280',
+  },
   tabButtons: {
     flexDirection: 'row',
     borderBottomWidth: 1,
@@ -743,6 +974,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
+  },
+  inputDisabled: {
+    backgroundColor: '#f3f4f6',
+  },
+  helperText: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#9ca3af',
   },
   row: {
     flexDirection: 'row',
@@ -864,48 +1103,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
     fontWeight: '500',
-  },
-  socialButtons: {
-    marginTop: 16,
-    gap: 12,
-  },
-  googleButton: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  socialButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  kakaoButton: {
-    backgroundColor: '#FEE500',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  kakaoButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#000000',
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 20,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#e5e7eb',
-  },
-  dividerText: {
-    paddingHorizontal: 12,
-    fontSize: 14,
-    color: '#6b7280',
   },
 });

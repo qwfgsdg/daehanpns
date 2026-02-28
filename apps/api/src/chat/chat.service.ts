@@ -53,7 +53,7 @@ export class ChatService {
   }
 
   /**
-   * Get all rooms with filters
+   * Get all rooms with filters (관리자용)
    */
   async getRooms(params: {
     type?: ChatType;
@@ -86,6 +86,94 @@ export class ChatService {
   }
 
   /**
+   * Get my rooms (내가 참여한 채팅방만)
+   */
+  async getMyRooms(userId: string, params: {
+    search?: string;
+    skip?: number;
+    take?: number;
+  }) {
+    const where: Prisma.ChatRoomWhereInput = {
+      participants: {
+        some: {
+          userId,
+          leftAt: null,
+          isKicked: false,
+        },
+      },
+    };
+
+    if (params.search) {
+      where.name = { contains: params.search, mode: 'insensitive' };
+    }
+
+    const [rooms, total] = await Promise.all([
+      this.prisma.chatRoom.findMany({
+        where,
+        skip: params.skip || 0,
+        take: params.take || 20,
+        orderBy: { updatedAt: 'desc' },
+        include: {
+          participants: {
+            where: { leftAt: null, isKicked: false },
+            include: { user: { select: { id: true, name: true, nickname: true, profileImage: true } } },
+          },
+          messages: {
+            where: { isDeleted: false },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
+          _count: {
+            select: {
+              participants: { where: { leftAt: null, isKicked: false } },
+            },
+          },
+        },
+      }),
+      this.prisma.chatRoom.count({ where }),
+    ]);
+
+    return { rooms, total };
+  }
+
+  /**
+   * Get public rooms (공개 채팅방 탐색용)
+   */
+  async getPublicRooms(params: {
+    search?: string;
+    skip?: number;
+    take?: number;
+  }) {
+    const where: Prisma.ChatRoomWhereInput = {
+      type: 'ONE_TO_N',
+      isActive: true,
+    };
+
+    if (params.search) {
+      where.name = { contains: params.search, mode: 'insensitive' };
+    }
+
+    const [rooms, total] = await Promise.all([
+      this.prisma.chatRoom.findMany({
+        where,
+        skip: params.skip || 0,
+        take: params.take || 20,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          _count: {
+            select: {
+              participants: { where: { leftAt: null, isKicked: false } },
+            },
+          },
+        },
+      }),
+      this.prisma.chatRoom.count({ where }),
+    ]);
+
+    return { rooms, total };
+  }
+
+  /**
    * Update room
    */
   async updateRoom(
@@ -106,21 +194,55 @@ export class ChatService {
   }
 
   /**
-   * Join room
+   * Join room (권한 체크 포함)
    */
   async joinRoom(roomId: string, userId: string): Promise<any> {
     const room = await this.getRoomById(roomId);
 
     if (!room) {
-      throw new Error('Room not found');
+      throw new Error('채팅방을 찾을 수 없습니다.');
     }
 
-    return this.prisma.chatParticipant.create({
-      data: {
-        roomId,
-        userId,
-      },
+    // 기존 참여자 레코드 확인
+    const existing = await this.prisma.chatParticipant.findUnique({
+      where: { roomId_userId: { roomId, userId } },
     });
+
+    if (existing) {
+      // 강퇴된 경우 재입장 불가
+      if (existing.isKicked) {
+        throw new Error('강퇴된 채팅방에는 다시 입장할 수 없습니다.');
+      }
+      // 퇴장한 경우 재활성화
+      if (existing.leftAt) {
+        return this.prisma.chatParticipant.update({
+          where: { id: existing.id },
+          data: { leftAt: null },
+        });
+      }
+      // 이미 활성 참여자
+      return existing;
+    }
+
+    // 방 타입별 권한 체크
+    if (room.type === 'ONE_TO_N') {
+      // Expert 유료방 구독 체크
+      const hasAccess = await this.checkSubscriptionAccess(roomId, userId);
+      if (!hasAccess) {
+        throw new Error('구독이 필요한 채팅방입니다.');
+      }
+      // 공개방 자유 입장 (MEMBER = 읽기전용)
+      return this.prisma.chatParticipant.create({
+        data: {
+          roomId,
+          userId,
+          ownerType: 'MEMBER',
+        },
+      });
+    }
+
+    // ONE_TO_ONE, TWO_WAY: 초대 전용
+    throw new Error('초대 전용 채팅방입니다.');
   }
 
   /**
@@ -142,13 +264,14 @@ export class ChatService {
   }
 
   /**
-   * Leave room
+   * Leave room (soft delete)
    */
   async leaveRoom(roomId: string, userId: string): Promise<void> {
-    await this.prisma.chatParticipant.delete({
+    await this.prisma.chatParticipant.update({
       where: {
         roomId_userId: { roomId, userId },
       },
+      data: { leftAt: new Date() },
     });
   }
 

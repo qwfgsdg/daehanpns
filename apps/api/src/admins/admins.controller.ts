@@ -160,7 +160,7 @@ export class AdminsController {
     }
     const link = this.adminsService.generateInviteLink(
       admin.affiliationCode,
-      baseUrl || 'https://daehanpns.net',
+      baseUrl || 'https://dhpns.kr',
     );
     return { link, affiliationCode: admin.affiliationCode };
   }

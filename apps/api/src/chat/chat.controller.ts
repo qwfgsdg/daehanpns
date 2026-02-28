@@ -42,7 +42,7 @@ export class ChatController {
   }
 
   /**
-   * Get all rooms
+   * Get rooms (admin: 전체, user: 내 채팅방)
    */
   @Get('rooms')
   async getRooms(
@@ -51,21 +51,39 @@ export class ChatController {
     @Query('search') search?: string,
     @Query('skip') skip?: string,
     @Query('take') take?: string,
+    @Req() req?: any,
   ) {
-    const params: any = { type, ownerId, search };
+    const params: any = { search };
 
     if (skip) params.skip = parseInt(skip, 10);
     if (take) params.take = parseInt(take, 10);
 
-    return this.chatService.getRooms(params);
+    // 관리자: 기존 전체 목록
+    if (req?.user?.isAdmin) {
+      params.type = type;
+      params.ownerId = ownerId;
+      return this.chatService.getRooms(params);
+    }
+
+    // 일반 유저: 내가 참여한 방만
+    return this.chatService.getMyRooms(req.user.id, params);
   }
 
   /**
-   * Get room by ID
+   * Get public rooms (공개 채팅방 탐색)
    */
-  @Get('rooms/:id')
-  async getRoom(@Param('id') id: string) {
-    return this.chatService.getRoomById(id);
+  @Get('rooms/public')
+  async getPublicRooms(
+    @Query('search') search?: string,
+    @Query('skip') skip?: string,
+    @Query('take') take?: string,
+  ) {
+    const params: any = { search };
+
+    if (skip) params.skip = parseInt(skip, 10);
+    if (take) params.take = parseInt(take, 10);
+
+    return this.chatService.getPublicRooms(params);
   }
 
   /**
@@ -74,6 +92,14 @@ export class ChatController {
   @Get('rooms/code/:code')
   async getRoomByCode(@Param('code') code: string) {
     return this.chatService.getRoomByEntryCode(code);
+  }
+
+  /**
+   * Get room by ID
+   */
+  @Get('rooms/:id')
+  async getRoom(@Param('id') id: string) {
+    return this.chatService.getRoomById(id);
   }
 
   /**

@@ -9,8 +9,9 @@ datasource db {
 
 model User {
   id                   String                @id @default(uuid())
+  loginId              String?               @unique
   email                String?               @unique
-  phone                String                @unique
+  phone                String?               @unique
   password             String?
   name                 String
   nickname             String?               @unique
@@ -32,7 +33,10 @@ model User {
   showCoinRooms        Boolean               @default(false)
   managerId            String?
   referralSource       ReferralSource?
+  isManagedBot         Boolean               @default(false)
+  managedByAdminId     String?
   manager              Admin?                @relation("ManagerRelation", fields: [managerId], references: [id])
+  botOwner             Admin?                @relation("BotUserRelation")
   chatParticipants     ChatParticipant[]
   memos                MemberMemo[]
   notifications        Notification[]
@@ -43,6 +47,7 @@ model User {
   memberTypeHistories  MemberTypeHistory[]
   managerHistories     ManagerHistory[]      @relation("UserManagerHistory")
 
+  @@index([loginId])
   @@index([email])
   @@index([phone])
   @@index([affiliateCode])
@@ -51,6 +56,7 @@ model User {
   @@index([nickname])
   @@index([memberType])
   @@index([managerId])
+  @@index([isManagedBot])
 }
 
 model Admin {
@@ -75,8 +81,12 @@ model Admin {
   region          String?
   createdBy       String?
   parentAdminId   String?
+  botUserId       String?           @unique
+  chatNickname    String?
+  chatProfileImage String?
   parent          Admin?            @relation("AdminHierarchy", fields: [parentAdminId], references: [id])
   subordinates    Admin[]           @relation("AdminHierarchy")
+  botUser         User?             @relation("BotUserRelation", fields: [botUserId], references: [id])
   logs            AdminLog[]
   permissions     AdminPermission[]
   managedUsers    User[]            @relation("ManagerRelation")
@@ -87,6 +97,7 @@ model Admin {
   @@index([affiliationCode])
   @@index([referralCode])
   @@index([parentAdminId])
+  @@index([botUserId])
 }
 
 model AdminPermission {
@@ -449,6 +460,7 @@ enum AuthProvider {
   LOCAL
   GOOGLE
   KAKAO
+  BOT
 }
 
 enum Gender {

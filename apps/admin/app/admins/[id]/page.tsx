@@ -28,6 +28,8 @@ export default function AdminDetailPage() {
     phone: '',
     region: '',
     tier: '',
+    chatNickname: '',
+    chatProfileImage: '',
   });
 
   // 비밀번호 변경
@@ -99,6 +101,8 @@ export default function AdminDetailPage() {
         phone: data.phone || '',
         region: data.region || '',
         tier: data.tier || '',
+        chatNickname: data.chatNickname || '',
+        chatProfileImage: data.chatProfileImage || '',
       });
     } catch (error) {
       console.error('Failed to load admin:', error);
@@ -190,7 +194,7 @@ export default function AdminDetailPage() {
 
   const handleGenerateInviteLink = async () => {
     try {
-      const data = await ApiClient.getInviteLink(adminId, 'https://daehanpns.net');
+      const data = await ApiClient.getInviteLink(adminId, 'https://dhpns.kr');
       setInviteLink(data.link);
       setShowInviteLinkModal(true);
     } catch (error: any) {
@@ -508,6 +512,40 @@ export default function AdminDetailPage() {
                     />
                   ) : (
                     <p className="text-base font-medium">{admin.region || '-'}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="text-sm text-gray-500">채팅 닉네임</label>
+                  {isEditMode ? (
+                    <Input
+                      value={editForm.chatNickname}
+                      onChange={(e) => setEditForm({ ...editForm, chatNickname: e.target.value })}
+                      placeholder="채팅에서 표시될 닉네임"
+                    />
+                  ) : (
+                    <p className="text-base font-medium">{admin.chatNickname || '-'}</p>
+                  )}
+                  <p className="text-xs text-gray-400">채팅방에서 표시되는 페르소나 닉네임</p>
+                </div>
+                <div>
+                  <label className="text-sm text-gray-500">채팅 프로필 사진</label>
+                  {isEditMode ? (
+                    <Input
+                      value={editForm.chatProfileImage}
+                      onChange={(e) => setEditForm({ ...editForm, chatProfileImage: e.target.value })}
+                      placeholder="프로필 사진 URL"
+                    />
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      {admin.chatProfileImage ? (
+                        <>
+                          <img src={admin.chatProfileImage} alt="Chat profile" className="w-8 h-8 rounded-full object-cover" />
+                          <p className="text-base font-medium text-gray-600 truncate">{admin.chatProfileImage}</p>
+                        </>
+                      ) : (
+                        <p className="text-base font-medium">-</p>
+                      )}
+                    </div>
                   )}
                 </div>
                 <div>

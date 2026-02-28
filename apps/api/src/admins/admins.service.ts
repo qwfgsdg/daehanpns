@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../modules/prisma/prisma.service';
 import { LogsService } from '../modules/logs/logs.service';
-import { Admin, AdminTier, Prisma } from '@prisma/client';
+import { Admin, AdminTier, AuthProvider, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { nanoid } from 'nanoid';
 import { AdminWithRelations } from '../common/helpers/admin-scope.helper';
@@ -82,6 +82,8 @@ export class AdminsService {
       tier: AdminTier;
       region?: string;
       logoUrl?: string;
+      chatNickname?: string;
+      chatProfileImage?: string;
     },
     actorId?: string,
   ): Promise<Admin> {
@@ -134,7 +136,31 @@ export class AdminsService {
         referralCode: code,     // ✅ 같은 값
         region: data.region,
         logoUrl: data.logoUrl,
+        chatNickname: data.chatNickname,
+        chatProfileImage: data.chatProfileImage,
       },
+    });
+
+    // 봇 User 자동 생성 (채팅 페르소나)
+    const chatNick = data.chatNickname || data.salesName;
+    const botUser = await this.prisma.user.create({
+      data: {
+        loginId: `bot_${data.loginId}`,
+        provider: AuthProvider.BOT,
+        password: null,
+        name: chatNick,
+        nickname: chatNick,
+        profileImage: data.chatProfileImage || data.logoUrl || undefined,
+        isManagedBot: true,
+        managedByAdminId: admin.id,
+        affiliateCode: code,
+      },
+    });
+
+    // Admin에 botUserId 연결
+    await this.prisma.admin.update({
+      where: { id: admin.id },
+      data: { botUserId: botUser.id },
     });
 
     // Create default permissions
@@ -259,6 +285,28 @@ export class AdminsService {
   ): Promise<Admin> {
     const before = await this.findById(id);
     const updated = await this.prisma.admin.update({ where: { id }, data });
+
+    // 봇 User 동기화: chatNickname 또는 chatProfileImage 변경 시
+    if (updated.botUserId && (data.chatNickname || data.chatProfileImage || data.salesName)) {
+      const botUpdateData: any = {};
+      if (data.chatNickname) {
+        const nick = typeof data.chatNickname === 'string' ? data.chatNickname : undefined;
+        if (nick) {
+          botUpdateData.name = nick;
+          botUpdateData.nickname = nick;
+        }
+      }
+      if (data.chatProfileImage) {
+        const img = typeof data.chatProfileImage === 'string' ? data.chatProfileImage : undefined;
+        if (img) botUpdateData.profileImage = img;
+      }
+      if (Object.keys(botUpdateData).length > 0) {
+        await this.prisma.user.update({
+          where: { id: updated.botUserId },
+          data: botUpdateData,
+        });
+      }
+    }
 
     await this.logsService.createAdminLog({
       adminId: actorId,
@@ -398,7 +446,7 @@ export class AdminsService {
    * Generate invite link with affiliation code
    */
   generateInviteLink(affiliationCode: string, baseUrl: string): string {
-    return `${baseUrl}/join?code=${affiliationCode}`;
+    return `${baseUrl}/invite/${affiliationCode}`;
   }
 
   /**

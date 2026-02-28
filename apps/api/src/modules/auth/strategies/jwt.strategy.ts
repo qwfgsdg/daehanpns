@@ -18,8 +18,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
-    // 관리자인 경우
-    if (payload.loginId) {
+    // 관리자인 경우 (type 필드로 판별 — loginId는 Phase 2 이후 user JWT에도 포함됨)
+    if (payload.type === 'admin') {
       const admin = await this.prisma.admin.findUnique({
         where: { id: payload.sub },
         include: {

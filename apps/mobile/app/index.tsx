@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { ActivityIndicator, Text } from 'react-native-paper';
 import { useAuth } from '@/hooks';
 import { COLORS } from '@/constants';
+import { checkInstallReferrer } from '@/lib/installReferrer';
 
 export default function SplashScreen() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -17,7 +18,9 @@ export default function SplashScreen() {
     if (isLoading) return;
 
     const redirect = async () => {
-      // 스플래시 화면 표시 (1초)
+      // Install Referrer 확인 (EAS 빌드에서만 동작)
+      await checkInstallReferrer();
+
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       if (isAuthenticated) {

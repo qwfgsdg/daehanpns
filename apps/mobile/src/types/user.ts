@@ -4,11 +4,12 @@
 
 export type MemberType = 'STOCK' | 'COIN' | 'HYBRID';
 
-export type Provider = 'LOCAL' | 'GOOGLE' | 'KAKAO';
+export type Provider = 'LOCAL' | 'GOOGLE' | 'KAKAO' | 'BOT';
 
 export interface User {
   id: string;
-  phone: string;
+  loginId?: string;
+  phone?: string;
   name: string;
   nickname?: string;
   gender?: 'MALE' | 'FEMALE';

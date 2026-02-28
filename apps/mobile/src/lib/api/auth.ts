@@ -14,6 +14,7 @@ import {
   ValidateReferralCodeResponse,
   SearchManagersResponse,
   CheckDuplicateResponse,
+  CheckLoginIdResponse,
 } from '@/types';
 
 /**
@@ -91,6 +92,53 @@ export const checkDuplicate = async (phone: string): Promise<CheckDuplicateRespo
     { params: { phone } }
   );
   return response.data;
+};
+
+/**
+ * loginId 중복 확인
+ */
+export const checkLoginId = async (loginId: string): Promise<CheckLoginIdResponse> => {
+  const response = await apiClient.get<CheckLoginIdResponse>(
+    '/auth/check-login-id',
+    { params: { loginId } }
+  );
+  return response.data;
+};
+
+/**
+ * 기존 유저 loginId 변경 (로그인 후 아이디 설정)
+ */
+export const updateLoginId = async (data: { loginId: string; password?: string }): Promise<LoginResponse> => {
+  const response = await apiClient.post<LoginResponse>(
+    '/auth/update-login-id',
+    data
+  );
+  return response.data;
+};
+
+/**
+ * 소셜 로그인 (모바일 - 토큰/코드 교환 방식)
+ */
+export const socialLogin = async (data: {
+  provider: 'google' | 'kakao';
+  idToken?: string;
+  code?: string;
+  redirectUri?: string;
+}) => {
+  if (data.provider === 'google') {
+    const res = await apiClient.post('/auth/google/mobile', {
+      idToken: data.idToken,
+      code: data.code,
+      redirectUri: data.redirectUri,
+    });
+    return res.data;
+  } else {
+    const res = await apiClient.post('/auth/kakao/mobile', {
+      code: data.code,
+      redirectUri: data.redirectUri,
+    });
+    return res.data;
+  }
 };
 
 /**

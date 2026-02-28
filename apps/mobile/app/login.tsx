@@ -7,52 +7,132 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
-  Linking,
 } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+import { makeRedirectUri } from 'expo-auth-session';
 import { useRouter } from 'expo-router';
-import { login as apiLogin } from '@/lib/api';
+import { login as apiLogin, socialLogin } from '@/lib/api';
 import { useAuthStore } from '@/store';
 import { getErrorMessage } from '@/lib/api';
-import { API_URL } from '@/constants';
+import { API_URL, GOOGLE_CLIENT_ID, KAKAO_CLIENT_ID } from '@/constants';
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
   const router = useRouter();
   const { setToken, setUser } = useAuthStore();
-  const [phone, setPhone] = useState('');
+  const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  // Google 로그인 (WebBrowser + 서버 프록시 redirect 방식)
+  const handleGoogleLogin = async () => {
+    const appReturnUrl = makeRedirectUri({ scheme: 'daehanpns', path: 'oauth/google' });
+    const googleRedirectUri = `${API_URL}/auth/google/mobile/redirect`;
+
+    const authUrl =
+      `https://accounts.google.com/o/oauth2/v2/auth` +
+      `?client_id=${GOOGLE_CLIENT_ID}` +
+      `&redirect_uri=${encodeURIComponent(googleRedirectUri)}` +
+      `&response_type=code` +
+      `&scope=${encodeURIComponent('openid email profile')}` +
+      `&state=${encodeURIComponent(appReturnUrl)}`;
+
+    const result = await WebBrowser.openAuthSessionAsync(authUrl, appReturnUrl);
+
+    if (result.type === 'success' && result.url) {
+      const codeMatch = result.url.match(/[?&]code=([^&]+)/);
+      const code = codeMatch ? codeMatch[1] : null;
+
+      if (code) {
+        handleSocialResult('google', { code, redirectUri: googleRedirectUri });
+      }
+    }
+  };
+
+  // Kakao 로그인 (WebBrowser + 서버 프록시 redirect 방식)
+  const handleKakaoLogin = async () => {
+    const appReturnUrl = makeRedirectUri({ scheme: 'daehanpns', path: 'oauth/kakao' });
+    const kakaoRedirectUri = `${API_URL}/auth/kakao/mobile/redirect`;
+
+    const authUrl =
+      `https://kauth.kakao.com/oauth/authorize` +
+      `?client_id=${KAKAO_CLIENT_ID}` +
+      `&redirect_uri=${encodeURIComponent(kakaoRedirectUri)}` +
+      `&response_type=code` +
+      `&state=${encodeURIComponent(appReturnUrl)}`;
+
+    const result = await WebBrowser.openAuthSessionAsync(authUrl, appReturnUrl);
+
+    if (result.type === 'success' && result.url) {
+      const codeMatch = result.url.match(/[?&]code=([^&]+)/);
+      const code = codeMatch ? codeMatch[1] : null;
+
+      if (code) {
+        handleSocialResult('kakao', { code, redirectUri: kakaoRedirectUri });
+      }
+    }
+  };
+
   const handleLogin = async () => {
-    if (!phone || !password) {
-      Alert.alert('오류', '전화번호와 비밀번호를 입력해주세요.');
+    if (!loginId || !password) {
+      Alert.alert('오류', '아이디와 비밀번호를 입력해주세요.');
       return;
     }
 
     setIsLoading(true);
     try {
-      const result = await apiLogin({ phone, password });
-
-      // SecureStore에 토큰 저장
+      const result = await apiLogin({ loginId, password });
       await setToken(result.accessToken);
-      // 유저 정보 저장
       setUser(result.user as any);
 
-      router.replace('/(tabs)');
+      // 기존 유저 loginId 설정 필요 시 강제 이동
+      if (result.needsLoginIdSetup) {
+        router.replace('/profile/setup-login-id');
+      } else {
+        router.replace('/(tabs)');
+      }
     } catch (err: any) {
-      const message = getErrorMessage(err);
-      Alert.alert('오류', message);
+      Alert.alert('오류', getErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSocialLogin = async (provider: 'google' | 'kakao') => {
-    const authUrl = `${API_URL}/auth/${provider}?platform=mobile`;
-    const supported = await Linking.canOpenURL(authUrl);
-    if (supported) {
-      await Linking.openURL(authUrl);
-    } else {
-      Alert.alert('오류', 'OAuth 페이지를 열 수 없습니다.');
+  const handleSocialResult = async (
+    provider: 'google' | 'kakao',
+    data: { idToken?: string; code?: string; redirectUri?: string },
+  ) => {
+    setIsLoading(true);
+    try {
+      const result = await socialLogin({ provider, ...data });
+
+      if (result.isNewUser) {
+        const socialData = result.googleUser || result.kakaoUser;
+        if (!socialData) {
+          Alert.alert('오류', '소셜 계정 정보를 가져올 수 없습니다.');
+          return;
+        }
+        router.push({
+          pathname: '/register',
+          params: {
+            socialProvider: provider,
+            socialData: JSON.stringify(socialData),
+          },
+        });
+      } else {
+        await setToken(result.accessToken);
+        setUser(result.user);
+        if (result.needsLoginIdSetup) {
+          router.replace('/profile/setup-login-id');
+        } else {
+          router.replace('/(tabs)');
+        }
+      }
+    } catch (err: any) {
+      Alert.alert('오류', getErrorMessage(err));
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -65,13 +145,13 @@ export default function LoginScreen() {
 
       <View style={styles.form}>
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>전화번호</Text>
+          <Text style={styles.label}>아이디</Text>
           <TextInput
             style={styles.input}
-            value={phone}
-            onChangeText={setPhone}
-            placeholder="01012345678"
-            keyboardType="phone-pad"
+            value={loginId}
+            onChangeText={setLoginId}
+            placeholder="아이디 입력"
+            autoCapitalize="none"
           />
         </View>
 
@@ -109,14 +189,16 @@ export default function LoginScreen() {
         <View style={styles.socialButtons}>
           <TouchableOpacity
             style={styles.googleButton}
-            onPress={() => handleSocialLogin('google')}
+            onPress={handleGoogleLogin}
+            disabled={isLoading}
           >
             <Text style={styles.socialButtonText}>구글로 로그인</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.kakaoButton}
-            onPress={() => handleSocialLogin('kakao')}
+            onPress={handleKakaoLogin}
+            disabled={isLoading}
           >
             <Text style={styles.kakaoButtonText}>카카오로 로그인</Text>
           </TouchableOpacity>

@@ -115,6 +115,14 @@ export default function RootLayout() {
                   headerBackTitle: '뒤로',
                 }}
               />
+              <Stack.Screen
+                name="profile/setup-login-id"
+                options={{
+                  title: '아이디 설정',
+                  headerBackVisible: false,
+                  gestureEnabled: false,
+                }}
+              />
 
             </Stack>
 

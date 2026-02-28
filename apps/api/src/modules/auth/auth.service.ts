@@ -197,53 +197,56 @@ export class AuthService {
     }
   }
 
-  // ===== 회원 회원가입 (전화번호 + 비밀번호) =====
+  // ===== 회원 회원가입 (loginId + 비밀번호) =====
   async userRegister(data: {
-    phone: string;
+    loginId: string;
+    phone?: string;
     password: string;
     name: string;
     nickname?: string;
     gender?: 'MALE' | 'FEMALE';
     birthDate?: string;
-    referralCode?: string; // 추천 코드로 담당자 찾기
-    managerId?: string; // 직접 담당자 ID 지정 (이름 검색 후 선택)
+    referralCode?: string;
+    managerId?: string;
   }) {
-    console.log('🔍 [회원가입] 전달받은 데이터:', JSON.stringify({
-      phone: data.phone,
-      name: data.name,
-      referralCode: data.referralCode,
-      managerId: data.managerId,
-    }, null, 2));
-
-    // 전화번호 중복 확인 (삭제되지 않은 사용자만)
-    const existingUser = await this.prisma.user.findFirst({
-      where: {
-        phone: data.phone,
-        deletedAt: null,
-      },
-    });
-
-    if (existingUser) {
-      throw new ConflictException('이미 가입된 전화번호입니다.');
+    // loginId 필수 검증
+    if (!data.loginId || data.loginId.length < 4) {
+      throw new BadRequestException('아이디는 4자 이상이어야 합니다.');
     }
 
-    // 담당자 배정 로직 (Hybrid 방식)
+    // loginId 중복 확인
+    const existingByLoginId = await this.prisma.user.findFirst({
+      where: { loginId: data.loginId, deletedAt: null },
+    });
+    if (existingByLoginId) {
+      throw new ConflictException('이미 사용 중인 아이디입니다.');
+    }
+
+    // 전화번호 중복 확인 (제공 시에만)
+    if (data.phone) {
+      const existingByPhone = await this.prisma.user.findFirst({
+        where: { phone: data.phone, deletedAt: null },
+      });
+      if (existingByPhone) {
+        throw new ConflictException('이미 가입된 전화번호입니다.');
+      }
+    }
+
+    // 담당자 배정 로직
     let assignedManagerId: string | undefined;
     let affiliateCode: string | undefined;
     let referralSource: 'CODE' | 'SEARCH' | 'INVITE_LINK' | undefined;
 
     if (data.referralCode) {
-      // Case 1: 추천 코드로 담당자 찾기 (초대링크 or 수동 입력)
       try {
         const manager = await this.managerService.findByReferralCode(data.referralCode);
         assignedManagerId = manager.id;
-        affiliateCode = manager.referralCode || manager.id; // 소속코드 = 담당자의 추천 코드
+        affiliateCode = manager.referralCode || manager.id;
         referralSource = 'CODE';
       } catch (error) {
         throw new BadRequestException('유효하지 않은 추천 코드입니다.');
       }
     } else if (data.managerId) {
-      // Case 2: 이름 검색 후 선택한 담당자 ID
       const manager = await this.prisma.admin.findUnique({
         where: { id: data.managerId, isActive: true, deletedAt: null },
       });
@@ -251,20 +254,19 @@ export class AuthService {
         throw new BadRequestException('유효하지 않은 담당자입니다.');
       }
       assignedManagerId = manager.id;
-      affiliateCode = manager.referralCode || manager.id; // 소속코드 = 담당자의 추천 코드 (없으면 ID)
+      affiliateCode = manager.referralCode || manager.id;
       referralSource = 'SEARCH';
     } else {
       throw new BadRequestException('담당자를 선택해주세요.');
     }
 
-    // 비밀번호 해시 (전화번호 회원가입 시 비밀번호가 없으면 임시 비밀번호 생성)
     const password = data.password || crypto.randomBytes(16).toString('hex');
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 회원 생성
     const user = await this.prisma.user.create({
       data: {
-        phone: data.phone,
+        loginId: data.loginId,
+        phone: data.phone || undefined,
         password: hashedPassword,
         name: data.name,
         nickname: data.nickname,
@@ -276,17 +278,16 @@ export class AuthService {
           const date = new Date(dateStr);
           return isNaN(date.getTime()) ? undefined : date;
         })(),
-        affiliateCode: affiliateCode!, // 담당자의 추천 코드로 자동 설정
+        affiliateCode: affiliateCode!,
         managerId: assignedManagerId,
         referralSource,
         provider: AuthProvider.LOCAL,
       },
     });
 
-    // JWT 생성
     const accessToken = this.jwtService.sign({
       sub: user.id,
-      phone: user.phone,
+      loginId: user.loginId,
       provider: user.provider,
     });
 
@@ -294,6 +295,7 @@ export class AuthService {
       accessToken,
       user: {
         id: user.id,
+        loginId: user.loginId,
         phone: user.phone,
         name: user.name,
         nickname: user.nickname,
@@ -303,14 +305,27 @@ export class AuthService {
     };
   }
 
-  // ===== 회원 로그인 (전화번호 + 비밀번호) =====
-  async userLogin(phone: string, password: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { phone },
+  // ===== 회원 로그인 (loginId + 비밀번호) =====
+  async userLogin(loginId: string, password: string) {
+    // loginId로 조회 (하위호환: loginId로 못 찾으면 phone으로 재시도)
+    let user = await this.prisma.user.findFirst({
+      where: { loginId, deletedAt: null },
     });
 
+    if (!user) {
+      // 기존 유저 하위호환: phone으로도 시도
+      user = await this.prisma.user.findFirst({
+        where: { phone: loginId, deletedAt: null },
+      });
+    }
+
     if (!user || !user.isActive || user.deletedAt) {
-      throw new UnauthorizedException('전화번호 또는 비밀번호가 올바르지 않습니다.');
+      throw new UnauthorizedException('아이디 또는 비밀번호가 올바르지 않습니다.');
+    }
+
+    // BOT 계정 로그인 차단
+    if (user.provider === 'BOT') {
+      throw new UnauthorizedException('로그인할 수 없는 계정입니다.');
     }
 
     if (!user.password) {
@@ -319,19 +334,25 @@ export class AuthService {
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      throw new UnauthorizedException('전화번호 또는 비밀번호가 올바르지 않습니다.');
+      throw new UnauthorizedException('아이디 또는 비밀번호가 올바르지 않습니다.');
     }
+
+    // loginId가 전화번호 패턴이면 아이디 설정 필요
+    const phonePattern = /^01[016789]\d{7,8}$/;
+    const needsLoginIdSetup = !user.loginId || phonePattern.test(user.loginId);
 
     const accessToken = this.jwtService.sign({
       sub: user.id,
-      phone: user.phone,
+      loginId: user.loginId,
       provider: user.provider,
     });
 
     return {
       accessToken,
+      needsLoginIdSetup,
       user: {
         id: user.id,
+        loginId: user.loginId,
         phone: user.phone,
         name: user.name,
         nickname: user.nickname,
@@ -457,18 +478,82 @@ export class AuthService {
     }
   }
 
+  // ===== loginId 중복 확인 =====
+  async checkLoginId(loginId: string) {
+    if (!loginId || loginId.length < 4) {
+      return { available: false, message: '아이디는 4자 이상이어야 합니다.' };
+    }
+
+    const existing = await this.prisma.user.findFirst({
+      where: { loginId, deletedAt: null },
+    });
+
+    if (existing) {
+      return { available: false, message: '이미 사용 중인 아이디입니다.' };
+    }
+
+    return { available: true, message: '사용 가능한 아이디입니다.' };
+  }
+
+  // ===== 기존 유저 loginId 변경 =====
+  async updateLoginId(userId: string, data: { loginId: string; password?: string }) {
+    if (!data.loginId || data.loginId.length < 4) {
+      throw new BadRequestException('아이디는 4자 이상이어야 합니다.');
+    }
+
+    // 중복 체크
+    const existing = await this.prisma.user.findFirst({
+      where: { loginId: data.loginId, deletedAt: null, id: { not: userId } },
+    });
+    if (existing) {
+      throw new ConflictException('이미 사용 중인 아이디입니다.');
+    }
+
+    const updateData: any = { loginId: data.loginId };
+
+    // 기존 소셜 유저(password=null)가 비밀번호도 함께 설정
+    if (data.password) {
+      if (data.password.length < 6) {
+        throw new BadRequestException('비밀번호는 6자 이상이어야 합니다.');
+      }
+      updateData.password = await bcrypt.hash(data.password, 10);
+    }
+
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+    });
+
+    // 새 JWT 발급 (loginId 반영)
+    const accessToken = this.jwtService.sign({
+      sub: user.id,
+      loginId: user.loginId,
+      provider: user.provider,
+    });
+
+    return {
+      accessToken,
+      user: {
+        id: user.id,
+        loginId: user.loginId,
+        phone: user.phone,
+        name: user.name,
+        nickname: user.nickname,
+      },
+    };
+  }
+
   // ===== 구글 OAuth =====
   async googleLogin(googleUser: any) {
     let user = await this.prisma.user.findFirst({
       where: {
         provider: AuthProvider.GOOGLE,
         providerId: String(googleUser.id),
-        deletedAt: null, // 삭제되지 않은 사용자만
+        deletedAt: null,
       },
     });
 
     if (!user) {
-      // 신규 회원 - 추가 정보 입력 필요
       return {
         isNewUser: true,
         googleUser: {
@@ -480,17 +565,27 @@ export class AuthService {
       };
     }
 
+    // BOT 체크
+    if (user.provider === 'BOT') {
+      throw new UnauthorizedException('로그인할 수 없는 계정입니다.');
+    }
+
+    const phonePattern = /^01[016789]\d{7,8}$/;
+    const needsLoginIdSetup = !user.loginId || phonePattern.test(user.loginId);
+
     const accessToken = this.jwtService.sign({
       sub: user.id,
-      phone: user.phone,
+      loginId: user.loginId,
       provider: user.provider,
     });
 
     return {
       isNewUser: false,
+      needsLoginIdSetup,
       accessToken,
       user: {
         id: user.id,
+        loginId: user.loginId,
         phone: user.phone,
         name: user.name,
         nickname: user.nickname,
@@ -504,12 +599,11 @@ export class AuthService {
       where: {
         provider: AuthProvider.KAKAO,
         providerId: String(kakaoUser.id),
-        deletedAt: null, // 삭제되지 않은 사용자만
+        deletedAt: null,
       },
     });
 
     if (!user) {
-      // 신규 회원 - 추가 정보 입력 필요
       return {
         isNewUser: true,
         kakaoUser: {
@@ -521,17 +615,27 @@ export class AuthService {
       };
     }
 
+    // BOT 체크
+    if (user.provider === 'BOT') {
+      throw new UnauthorizedException('로그인할 수 없는 계정입니다.');
+    }
+
+    const phonePattern = /^01[016789]\d{7,8}$/;
+    const needsLoginIdSetup = !user.loginId || phonePattern.test(user.loginId);
+
     const accessToken = this.jwtService.sign({
       sub: user.id,
-      phone: user.phone,
+      loginId: user.loginId,
       provider: user.provider,
     });
 
     return {
       isNewUser: false,
+      needsLoginIdSetup,
       accessToken,
       user: {
         id: user.id,
+        loginId: user.loginId,
         phone: user.phone,
         name: user.name,
         nickname: user.nickname,
@@ -539,63 +643,73 @@ export class AuthService {
     };
   }
 
-  // ===== 소셜 회원가입 완료 =====
+  // ===== 소셜 회원가입 완료 (loginId + password 필수, phone 선택, SMS 제거) =====
   async completeSocialRegister(data: {
     provider: AuthProvider;
     providerId: string;
-    phone: string;
+    loginId: string;
+    password: string;
+    phone?: string;
     name: string;
     nickname?: string;
     gender?: 'MALE' | 'FEMALE';
     birthDate?: string;
     email?: string;
     profileImage?: string;
-    referralCode?: string; // 추천 코드로 담당자 찾기
-    managerId?: string; // 직접 담당자 ID 지정 (이름 검색 후 선택)
+    referralCode?: string;
+    managerId?: string;
   }) {
-    // 전화번호 중복 확인 (삭제되지 않은 사용자만)
-    const existingUserByPhone = await this.prisma.user.findFirst({
-      where: {
-        phone: data.phone,
-        deletedAt: null,
-      },
-    });
-
-    if (existingUserByPhone) {
-      throw new ConflictException('이미 가입된 전화번호입니다.');
+    // loginId 필수 검증
+    if (!data.loginId || data.loginId.length < 4) {
+      throw new BadRequestException('아이디는 4자 이상이어야 합니다.');
+    }
+    if (!data.password || data.password.length < 6) {
+      throw new BadRequestException('비밀번호는 6자 이상이어야 합니다.');
     }
 
-    // 이메일 중복 확인 (이메일이 있는 경우, 삭제되지 않은 사용자만)
-    if (data.email) {
-      const existingUserByEmail = await this.prisma.user.findFirst({
-        where: {
-          email: data.email,
-          deletedAt: null,
-        },
-      });
+    // loginId 중복 확인
+    const existingByLoginId = await this.prisma.user.findFirst({
+      where: { loginId: data.loginId, deletedAt: null },
+    });
+    if (existingByLoginId) {
+      throw new ConflictException('이미 사용 중인 아이디입니다.');
+    }
 
-      if (existingUserByEmail) {
+    // 전화번호 중복 확인 (제공 시에만)
+    if (data.phone) {
+      const existingByPhone = await this.prisma.user.findFirst({
+        where: { phone: data.phone, deletedAt: null },
+      });
+      if (existingByPhone) {
+        throw new ConflictException('이미 가입된 전화번호입니다.');
+      }
+    }
+
+    // 이메일 중복 확인
+    if (data.email) {
+      const existingByEmail = await this.prisma.user.findFirst({
+        where: { email: data.email, deletedAt: null },
+      });
+      if (existingByEmail) {
         throw new ConflictException('이미 가입된 이메일입니다. 로그인 페이지에서 로그인해주세요.');
       }
     }
 
-    // 담당자 배정 로직 (Hybrid 방식)
+    // 담당자 배정
     let assignedManagerId: string | undefined;
     let affiliateCode: string | undefined;
     let referralSource: 'CODE' | 'SEARCH' | 'INVITE_LINK' | undefined;
 
     if (data.referralCode) {
-      // Case 1: 추천 코드로 담당자 찾기 (초대링크 or 수동 입력)
       try {
         const manager = await this.managerService.findByReferralCode(data.referralCode);
         assignedManagerId = manager.id;
-        affiliateCode = manager.referralCode || manager.id; // 소속코드 = 담당자의 추천 코드
+        affiliateCode = manager.referralCode || manager.id;
         referralSource = 'CODE';
       } catch (error) {
         throw new BadRequestException('유효하지 않은 추천 코드입니다.');
       }
     } else if (data.managerId) {
-      // Case 2: 이름 검색 후 선택한 담당자 ID
       const manager = await this.prisma.admin.findUnique({
         where: { id: data.managerId, isActive: true, deletedAt: null },
       });
@@ -603,18 +717,23 @@ export class AuthService {
         throw new BadRequestException('유효하지 않은 담당자입니다.');
       }
       assignedManagerId = manager.id;
-      affiliateCode = manager.referralCode || manager.id; // 소속코드 = 담당자의 추천 코드 (없으면 ID)
+      affiliateCode = manager.referralCode || manager.id;
       referralSource = 'SEARCH';
     } else {
       throw new BadRequestException('담당자를 선택해주세요.');
     }
+
+    // 비밀번호 해시
+    const hashedPassword = await bcrypt.hash(data.password, 10);
 
     // 회원 생성
     const user = await this.prisma.user.create({
       data: {
         provider: data.provider,
         providerId: data.providerId,
-        phone: data.phone,
+        loginId: data.loginId,
+        password: hashedPassword,
+        phone: data.phone || undefined,
         name: data.name,
         nickname: data.nickname,
         gender: data.gender,
@@ -625,7 +744,7 @@ export class AuthService {
           const date = new Date(dateStr);
           return isNaN(date.getTime()) ? undefined : date;
         })(),
-        affiliateCode: affiliateCode!, // 담당자의 추천 코드로 자동 설정
+        affiliateCode: affiliateCode!,
         email: data.email,
         profileImage: data.profileImage,
         managerId: assignedManagerId,
@@ -635,7 +754,7 @@ export class AuthService {
 
     const accessToken = this.jwtService.sign({
       sub: user.id,
-      phone: user.phone,
+      loginId: user.loginId,
       provider: user.provider,
     });
 
@@ -643,6 +762,7 @@ export class AuthService {
       accessToken,
       user: {
         id: user.id,
+        loginId: user.loginId,
         phone: user.phone,
         name: user.name,
         nickname: user.nickname,
@@ -711,6 +831,90 @@ export class AuthService {
       exists: false,
       message: '사용 가능합니다.',
     };
+  }
+
+  // ===== 구글 모바일 로그인 (id_token 또는 authorization code 방식) =====
+  async googleMobileLogin(data: { idToken?: string; code?: string; redirectUri?: string }) {
+    try {
+      let googleProfile: { id: string; email: string; name: string; picture: string };
+
+      if (data.idToken) {
+        // 기존 방식: id_token 직접 검증
+        const res = await axios.get(
+          `https://oauth2.googleapis.com/tokeninfo?id_token=${data.idToken}`,
+        );
+        const { sub: id, email, name, picture, aud } = res.data;
+
+        const googleClientId = this.configService.get('GOOGLE_CLIENT_ID');
+        if (aud !== googleClientId) {
+          throw new UnauthorizedException('유효하지 않은 Google 토큰입니다.');
+        }
+
+        googleProfile = { id, email, name, picture };
+      } else if (data.code && data.redirectUri) {
+        // 새 방식: authorization code → token 교환
+        const tokenRes = await axios.post('https://oauth2.googleapis.com/token', {
+          code: data.code,
+          client_id: this.configService.get('GOOGLE_CLIENT_ID'),
+          client_secret: this.configService.get('GOOGLE_CLIENT_SECRET'),
+          redirect_uri: data.redirectUri,
+          grant_type: 'authorization_code',
+        });
+
+        // id_token에서 사용자 정보 추출
+        const verifyRes = await axios.get(
+          `https://oauth2.googleapis.com/tokeninfo?id_token=${tokenRes.data.id_token}`,
+        );
+        const { sub: id, email, name, picture } = verifyRes.data;
+        googleProfile = { id, email, name, picture };
+      } else {
+        throw new BadRequestException('idToken 또는 code가 필요합니다.');
+      }
+
+      return this.googleLogin(googleProfile);
+    } catch (error) {
+      if (error instanceof UnauthorizedException || error instanceof ConflictException || error instanceof BadRequestException) {
+        throw error;
+      }
+      console.error('Google mobile login error:', error.response?.data || error.message);
+      throw new UnauthorizedException('Google 로그인에 실패했습니다.');
+    }
+  }
+
+  // ===== 카카오 모바일 로그인 (authorization code 방식) =====
+  async kakaoMobileLogin(code: string, redirectUri: string) {
+    try {
+      // 1. code → access_token 교환
+      const tokenParams: Record<string, string> = {
+        grant_type: 'authorization_code',
+        client_id: this.configService.get<string>('KAKAO_CLIENT_ID', ''),
+        redirect_uri: redirectUri,
+        code,
+      };
+      const clientSecret = this.configService.get<string>('KAKAO_CLIENT_SECRET');
+      if (clientSecret) {
+        tokenParams.client_secret = clientSecret;
+      }
+
+      const tokenRes = await axios.post(
+        'https://kauth.kakao.com/oauth/token',
+        null,
+        { params: tokenParams },
+      );
+      // 2. access_token → 사용자 정보 조회
+      const userRes = await axios.get('https://kapi.kakao.com/v2/user/me', {
+        headers: {
+          Authorization: `Bearer ${tokenRes.data.access_token}`,
+        },
+      });
+      // 3. 기존 kakaoLogin() 재사용
+      return this.kakaoLogin(userRes.data);
+    } catch (error) {
+      if (error instanceof UnauthorizedException || error instanceof ConflictException || error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new UnauthorizedException('카카오 로그인에 실패했습니다.');
+    }
   }
 
   // ===== 담당자 이름 검색 =====
