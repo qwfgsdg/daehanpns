@@ -4,7 +4,8 @@
 
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
-import { COLORS, SPACING } from '@/constants';
+import { COLORS } from '@/constants';
+import { SPACING } from '@/theme';
 
 interface Props {
   userNames: string[];

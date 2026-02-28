@@ -8,7 +8,8 @@ import { Text } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { ChatRoomCard } from '@/components/chat';
 import { useChat } from '@/hooks';
-import { COLORS, SPACING } from '@/constants';
+import { COLORS } from '@/constants';
+import { SPACING } from '@/theme';
 
 export default function ChatListScreen() {
   const router = useRouter();

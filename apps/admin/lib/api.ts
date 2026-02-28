@@ -537,6 +537,7 @@ export class ApiClient {
   static async createChat(data: {
     type: string;
     category?: 'STOCK' | 'COIN';
+    joinType?: 'FREE' | 'APPROVAL';
     name?: string;
     description?: string;
     image?: string;
@@ -546,6 +547,22 @@ export class ApiClient {
     return this.request<any>('/chats', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  }
+
+  static async getPendingParticipants(roomId: string) {
+    return this.request<any[]>(`/chat/rooms/${roomId}/pending`);
+  }
+
+  static async approveJoin(roomId: string, userId: string) {
+    return this.request<any>(`/chat/rooms/${roomId}/approve/${userId}`, {
+      method: 'POST',
+    });
+  }
+
+  static async rejectJoin(roomId: string, userId: string) {
+    return this.request<any>(`/chat/rooms/${roomId}/reject/${userId}`, {
+      method: 'POST',
     });
   }
 

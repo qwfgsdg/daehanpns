@@ -13,7 +13,8 @@ import { Text, TextInput, Button } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useUIStore } from '@/store';
 import { changePassword, getErrorMessage } from '@/lib/api';
-import { COLORS, SPACING } from '@/constants';
+import { COLORS } from '@/constants';
+import { SPACING } from '@/theme';
 
 export default function PasswordChangeScreen() {
   const { showLoading, hideLoading, showToast } = useUIStore();

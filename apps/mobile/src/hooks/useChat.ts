@@ -2,7 +2,7 @@
  * 채팅 관련 Hook
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useChatStore, useAuthStore } from '@/store';
 import { getChatRooms, getChatMessages, getPublicChatRooms } from '@/lib/api';
 import {
@@ -20,23 +20,29 @@ export const useChat = (roomId?: string) => {
     messages,
     currentRoomId,
     typingUsers,
+    hasMoreMessages,
     setRooms,
     setMessages,
     setCurrentRoom,
     prependMessages,
+    setHasMore,
   } = useChatStore();
 
   const { isAuthenticated } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [socketReady, setSocketReady] = useState(false);
+  const socketInitRef = useRef<Promise<any> | null>(null);
 
   // Socket 초기화 (로그인 시)
   useEffect(() => {
     if (isAuthenticated) {
       const init = async () => {
         try {
-          await initSocket();
+          socketInitRef.current = initSocket();
+          await socketInitRef.current;
           setupChatHandlers();
+          setSocketReady(true);
         } catch (err) {
           console.error('Socket init failed:', err);
         }
@@ -46,6 +52,7 @@ export const useChat = (roomId?: string) => {
       return () => {
         cleanupChatHandlers();
         disconnectSocket();
+        setSocketReady(false);
       };
     }
   }, [isAuthenticated]);
@@ -91,8 +98,12 @@ export const useChat = (roomId?: string) => {
         if (offset === 0) {
           setMessages(roomId, data);
         } else {
-          // 무한 스크롤: 기존 메시지 앞에 추가
+          // 무한 스크롤: 기존 메시지 앞에 추가 (중복 제거됨)
           prependMessages(roomId, data);
+        }
+        // 응답 개수가 limit 미만이면 더 이상 메시지 없음
+        if (data.length < limit) {
+          setHasMore(roomId, false);
         }
         return data;
       } catch (err) {
@@ -103,15 +114,21 @@ export const useChat = (roomId?: string) => {
         setIsLoading(false);
       }
     },
-    [setMessages, prependMessages]
+    [setMessages, prependMessages, setHasMore]
   );
 
-  // 현재 방 입장
+  // 현재 방 입장 (소켓 준비 후)
   useEffect(() => {
     if (roomId) {
       setCurrentRoom(roomId);
-      joinRoom(roomId);
       loadMessages(roomId);
+
+      // 소켓이 준비되면 방 입장
+      if (socketReady) {
+        joinRoom(roomId);
+      } else if (socketInitRef.current) {
+        socketInitRef.current.then(() => joinRoom(roomId)).catch(() => {});
+      }
 
       return () => {
         leaveRoom(roomId);
@@ -119,20 +136,24 @@ export const useChat = (roomId?: string) => {
     } else {
       setCurrentRoom(null);
     }
-  }, [roomId, setCurrentRoom, loadMessages]);
+  }, [roomId, socketReady, setCurrentRoom, loadMessages]);
 
-  // 현재 방 정보
-  const currentRoom = rooms.find((r) => r.id === currentRoomId);
+  // 현재 방 정보 (rooms가 배열이 아닐 경우 방어)
+  const safeRooms = Array.isArray(rooms) ? rooms : [];
+  const currentRoom = safeRooms.find((r) => r.id === currentRoomId);
   const currentMessages = currentRoomId ? messages[currentRoomId] || [] : [];
   const currentTypingUsers = currentRoomId
     ? typingUsers[currentRoomId] || []
     : [];
 
+  const hasMore = currentRoomId ? hasMoreMessages[currentRoomId] !== false : true;
+
   return {
-    rooms,
+    rooms: safeRooms,
     currentRoom,
     currentMessages,
     currentTypingUsers,
+    hasMore,
     isLoading,
     error,
     loadRooms,

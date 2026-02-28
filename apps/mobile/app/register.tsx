@@ -268,7 +268,7 @@ export default function RegisterScreen() {
       if (result.valid && result.manager) {
         setValidatedManager(result.manager);
         setSelectedManagerId(result.manager.id);
-        Alert.alert('확인 완료', `담당자: ${result.manager.name} (${result.manager.region || '지역 없음'})`);
+        Alert.alert('확인 완료', `담당자: ${result.manager.name}${result.manager.affiliationCode ? ` (${result.manager.affiliationCode})` : ''}`);
       } else {
         Alert.alert('오류', result.message || '유효하지 않은 추천 코드입니다.');
         setValidatedManager(null);
@@ -306,7 +306,7 @@ export default function RegisterScreen() {
   const handleSelectManager = (manager: any) => {
     setSelectedManagerId(manager.id);
     setValidatedManager(manager);
-    Alert.alert('담당자 선택', `${manager.name} (${manager.region || '지역 없음'}) 님을 선택하셨습니다.`);
+    Alert.alert('담당자 선택', `${manager.name}${manager.affiliationCode ? ` (${manager.affiliationCode})` : ''} 님을 선택하셨습니다.`);
   };
 
   const handleManagerNext = () => {
@@ -617,8 +617,7 @@ export default function RegisterScreen() {
                     >
                       <Text style={styles.managerName}>{manager.name}</Text>
                       <Text style={styles.managerDetails}>
-                        {manager.region || '지역 없음'} · {manager.tier}
-                        {manager.referralCode && ` · ${manager.referralCode}`}
+                        {manager.affiliationCode ? `소속코드: ${manager.affiliationCode}` : ''}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -629,7 +628,7 @@ export default function RegisterScreen() {
                 <View style={styles.managerInfo}>
                   <Text style={styles.managerInfoText}>
                     선택된 담당자: {validatedManager.name}
-                    {validatedManager.region && ` (${validatedManager.region})`}
+                    {validatedManager.affiliationCode && ` (${validatedManager.affiliationCode})`}
                   </Text>
                 </View>
               )}
@@ -659,7 +658,7 @@ export default function RegisterScreen() {
                 <View style={styles.managerInfo}>
                   <Text style={styles.managerInfoText}>
                     담당자: {validatedManager.name}
-                    {validatedManager.region && ` (${validatedManager.region})`}
+                    {validatedManager.affiliationCode && ` (${validatedManager.affiliationCode})`}
                     {isInviteReadOnly && ' (초대링크)'}
                   </Text>
                 </View>

@@ -11,6 +11,7 @@ import { ChatMessage } from '@/types';
  */
 export const setupChatHandlers = () => {
   const socket = getSocket();
+  if (!socket) return;
   const chatStore = useChatStore.getState();
 
   // 새 메시지 수신
@@ -74,7 +75,7 @@ export const setupChatHandlers = () => {
   socket.on('room:user_joined', ({ roomId, userId, userType, timestamp }) => {
     if (chatStore.currentRoomId === roomId) {
       const systemMessage: ChatMessage = {
-        id: `system-${Date.now()}`,
+        id: `system-join-${roomId}-${userId}`,
         roomId,
         senderId: 'system',
         senderType: 'USER',
@@ -92,7 +93,7 @@ export const setupChatHandlers = () => {
   socket.on('room:user_left', ({ roomId, userId, userType, timestamp }) => {
     if (chatStore.currentRoomId === roomId) {
       const systemMessage: ChatMessage = {
-        id: `system-${Date.now()}`,
+        id: `system-leave-${roomId}-${userId}-${Date.now()}`,
         roomId,
         senderId: 'system',
         senderType: 'USER',
@@ -133,6 +134,7 @@ export const setupChatHandlers = () => {
  */
 export const cleanupChatHandlers = () => {
   const socket = getSocket();
+  if (!socket) return;
 
   socket.off('message:new');
   socket.off('message:deleted');
@@ -160,6 +162,7 @@ export const sendMessage = (
   fileName?: string
 ) => {
   const socket = getSocket();
+  if (!socket) return;
   socket.emit('message:send', {
     roomId,
     content,
@@ -174,6 +177,7 @@ export const sendMessage = (
  */
 export const deleteOwnMessage = (messageId: string, roomId: string) => {
   const socket = getSocket();
+  if (!socket) return;
   socket.emit('message:delete_own', { messageId, roomId });
 };
 
@@ -182,6 +186,7 @@ export const deleteOwnMessage = (messageId: string, roomId: string) => {
  */
 export const pinMessage = (roomId: string, messageId: string) => {
   const socket = getSocket();
+  if (!socket) return;
   socket.emit('message:pin', { roomId, messageId });
 };
 
@@ -190,6 +195,7 @@ export const pinMessage = (roomId: string, messageId: string) => {
  */
 export const unpinMessage = (messageId: string, roomId: string) => {
   const socket = getSocket();
+  if (!socket) return;
   socket.emit('message:unpin', { messageId, roomId });
 };
 
@@ -198,6 +204,7 @@ export const unpinMessage = (messageId: string, roomId: string) => {
  */
 export const startTyping = (roomId: string) => {
   const socket = getSocket();
+  if (!socket) return;
   socket.emit('typing:start', { roomId });
 };
 
@@ -206,6 +213,7 @@ export const startTyping = (roomId: string) => {
  */
 export const stopTyping = (roomId: string) => {
   const socket = getSocket();
+  if (!socket) return;
   socket.emit('typing:stop', { roomId });
 };
 
@@ -214,5 +222,6 @@ export const stopTyping = (roomId: string) => {
  */
 export const markAsRead = (roomId: string) => {
   const socket = getSocket();
+  if (!socket) return;
   socket.emit('room:read', { roomId });
 };

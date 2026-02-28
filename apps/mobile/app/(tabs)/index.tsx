@@ -16,7 +16,8 @@ import { useRouter } from 'expo-router';
 import { Text, Card, Divider, ActivityIndicator } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '@/hooks';
-import { COLORS, SPACING } from '@/constants';
+import { COLORS } from '@/constants';
+import { SPACING } from '@/theme';
 import { getBanners } from '@/lib/api';
 import { Banner } from '@/types';
 

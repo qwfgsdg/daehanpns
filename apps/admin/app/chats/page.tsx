@@ -51,6 +51,7 @@ export default function ChatsPage() {
   const [createForm, setCreateForm] = useState({
     type: 'ONE_TO_N',
     category: 'STOCK' as 'STOCK' | 'COIN',
+    joinType: 'FREE' as 'FREE' | 'APPROVAL',
     name: '',
     description: '',
     image: '',
@@ -147,6 +148,7 @@ export default function ChatsPage() {
       await ApiClient.createChat({
         type: createForm.type,
         category: createForm.category,
+        joinType: createForm.joinType,
         name: createForm.name || undefined,
         description: createForm.description || undefined,
         image: createForm.image || undefined,
@@ -158,6 +160,7 @@ export default function ChatsPage() {
       setCreateForm({
         type: 'ONE_TO_N',
         category: 'STOCK',
+        joinType: 'FREE',
         name: '',
         description: '',
         image: '',
@@ -372,6 +375,9 @@ export default function ChatsPage() {
                       카테고리
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      입장 방식
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       참가자 수
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -417,6 +423,13 @@ export default function ChatsPage() {
                           <span className="px-2 py-1 text-xs rounded-full bg-yellow-50 text-yellow-700">코인</span>
                         ) : (
                           <span className="text-xs text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {(room as any).joinType === 'APPROVAL' ? (
+                          <span className="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800">승인 필요</span>
+                        ) : (
+                          <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">자유 입장</span>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -566,6 +579,35 @@ export default function ChatsPage() {
                       className="mr-2"
                     />
                     코인방
+                  </label>
+                </div>
+              </div>
+
+              {/* 입장 방식 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  입장 방식
+                </label>
+                <div className="flex gap-4">
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      value="FREE"
+                      checked={createForm.joinType === 'FREE'}
+                      onChange={(e) => setCreateForm({ ...createForm, joinType: e.target.value as 'FREE' | 'APPROVAL' })}
+                      className="mr-2"
+                    />
+                    자유 입장
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      value="APPROVAL"
+                      checked={createForm.joinType === 'APPROVAL'}
+                      onChange={(e) => setCreateForm({ ...createForm, joinType: e.target.value as 'FREE' | 'APPROVAL' })}
+                      className="mr-2"
+                    />
+                    승인 필요
                   </label>
                 </div>
               </div>

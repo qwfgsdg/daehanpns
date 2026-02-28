@@ -14,7 +14,7 @@ import { ChatService } from './chat.service';
 import { JwtAuthGuard } from '../modules/auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../modules/auth/guards/permission.guard';
 import { RequirePermission } from '../decorators/require-permission.decorator';
-import { ChatType, OwnerType } from '@prisma/client';
+import { ChatType, OwnerType, JoinType } from '@prisma/client';
 
 @Controller('chat')
 @UseGuards(JwtAuthGuard)
@@ -30,14 +30,14 @@ export class ChatController {
     data: {
       name: string;
       type: ChatType;
-      isApprovalRequired?: boolean;
-      isBidirectional?: boolean;
+      joinType?: JoinType;
     },
     @Req() req: any,
   ) {
     return this.chatService.createRoom({
       name: data.name,
       type: data.type,
+      joinType: data.joinType,
     });
   }
 
@@ -77,11 +77,13 @@ export class ChatController {
     @Query('search') search?: string,
     @Query('skip') skip?: string,
     @Query('take') take?: string,
+    @Req() req?: any,
   ) {
     const params: any = { search };
 
     if (skip) params.skip = parseInt(skip, 10);
     if (take) params.take = parseInt(take, 10);
+    if (req?.user?.id) params.userId = req.user.id;
 
     return this.chatService.getPublicRooms(params);
   }
@@ -143,6 +145,30 @@ export class ChatController {
     @Req() req: any,
   ) {
     return this.chatService.approveJoin(roomId, userId, req.user.id);
+  }
+
+  /**
+   * Reject join request
+   */
+  @Post('rooms/:roomId/reject/:userId')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('chat.manage')
+  async rejectJoin(
+    @Param('roomId') roomId: string,
+    @Param('userId') userId: string,
+    @Req() req: any,
+  ) {
+    return this.chatService.rejectJoin(roomId, userId, req.user.id);
+  }
+
+  /**
+   * Get pending participants
+   */
+  @Get('rooms/:id/pending')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('chat.manage')
+  async getPendingParticipants(@Param('id') id: string) {
+    return this.chatService.getPendingParticipants(id);
   }
 
   /**

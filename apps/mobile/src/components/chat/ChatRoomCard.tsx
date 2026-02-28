@@ -8,7 +8,8 @@ import { Badge } from 'react-native-paper';
 import { ChatRoom } from '@/types';
 import { Avatar } from '@/components/ui';
 import { formatChatListTime } from '@/lib/utils';
-import { COLORS, SPACING, BORDER_RADIUS } from '@/constants';
+import { COLORS } from '@/constants';
+import { SPACING, BORDER_RADIUS } from '@/theme';
 
 interface Props {
   room: ChatRoom;

@@ -5,7 +5,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, Modal } from 'react-native';
 import { ActivityIndicator } from 'react-native-paper';
-import { COLORS, SPACING } from '@/constants';
+import { COLORS } from '@/constants';
+import { SPACING } from '@/theme';
 
 interface Props {
   visible: boolean;

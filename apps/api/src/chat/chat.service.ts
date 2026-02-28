@@ -1,8 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../modules/prisma/prisma.service';
 import { LogsService } from '../modules/logs/logs.service';
 import { RedisService } from '../modules/redis/redis.service';
-import { ChatRoom, ChatMessage, ChatType, OwnerType, Prisma } from '@prisma/client';
+import { ChatRoom, ChatMessage, ChatType, OwnerType, JoinType, Prisma } from '@prisma/client';
 import { nanoid } from 'nanoid';
 
 @Injectable()
@@ -19,11 +19,13 @@ export class ChatService {
   async createRoom(data: {
     name: string;
     type: ChatType;
+    joinType?: JoinType;
   }): Promise<ChatRoom> {
     return this.prisma.chatRoom.create({
       data: {
         name: data.name,
         type: data.type,
+        joinType: data.joinType || 'FREE',
       },
     });
   }
@@ -97,6 +99,7 @@ export class ChatService {
       participants: {
         some: {
           userId,
+          status: 'ACTIVE',
           leftAt: null,
           isKicked: false,
         },
@@ -143,6 +146,7 @@ export class ChatService {
     search?: string;
     skip?: number;
     take?: number;
+    userId?: string;
   }) {
     const where: Prisma.ChatRoomWhereInput = {
       type: 'ONE_TO_N',
@@ -169,6 +173,27 @@ export class ChatService {
       }),
       this.prisma.chatRoom.count({ where }),
     ]);
+
+    // userId가 있으면 각 방의 참여 여부 확인
+    if (params.userId) {
+      const roomIds = rooms.map((r) => r.id);
+      const myParticipations = await this.prisma.chatParticipant.findMany({
+        where: {
+          roomId: { in: roomIds },
+          userId: params.userId,
+          leftAt: null,
+          isKicked: false,
+        },
+        select: { roomId: true, status: true },
+      });
+      const participationMap = new Map(myParticipations.map((p) => [p.roomId, p.status]));
+      const roomsWithJoined = rooms.map((r) => ({
+        ...r,
+        isJoined: participationMap.get(r.id) === 'ACTIVE',
+        isPending: participationMap.get(r.id) === 'PENDING',
+      }));
+      return { rooms: roomsWithJoined, total };
+    }
 
     return { rooms, total };
   }
@@ -200,7 +225,7 @@ export class ChatService {
     const room = await this.getRoomById(roomId);
 
     if (!room) {
-      throw new Error('채팅방을 찾을 수 없습니다.');
+      throw new NotFoundException('채팅방을 찾을 수 없습니다.');
     }
 
     // 기존 참여자 레코드 확인
@@ -211,14 +236,24 @@ export class ChatService {
     if (existing) {
       // 강퇴된 경우 재입장 불가
       if (existing.isKicked) {
-        throw new Error('강퇴된 채팅방에는 다시 입장할 수 없습니다.');
+        throw new ForbiddenException('강퇴된 채팅방에는 다시 입장할 수 없습니다.');
+      }
+      // PENDING 상태면 승인 대기 중
+      if (existing.status === 'PENDING') {
+        return { ...existing, isPending: true };
       }
       // 퇴장한 경우 재활성화
       if (existing.leftAt) {
-        return this.prisma.chatParticipant.update({
+        // APPROVAL 방이면 다시 PENDING으로
+        const newStatus = (room as any).joinType === 'APPROVAL' ? 'PENDING' : 'ACTIVE';
+        const updated = await this.prisma.chatParticipant.update({
           where: { id: existing.id },
-          data: { leftAt: null },
+          data: { leftAt: null, status: newStatus },
         });
+        if (newStatus === 'PENDING') {
+          return { ...updated, isPending: true };
+        }
+        return updated;
       }
       // 이미 활성 참여자
       return existing;
@@ -229,30 +264,63 @@ export class ChatService {
       // Expert 유료방 구독 체크
       const hasAccess = await this.checkSubscriptionAccess(roomId, userId);
       if (!hasAccess) {
-        throw new Error('구독이 필요한 채팅방입니다.');
+        throw new ForbiddenException('구독이 필요한 채팅방입니다.');
       }
-      // 공개방 자유 입장 (MEMBER = 읽기전용)
-      return this.prisma.chatParticipant.create({
-        data: {
-          roomId,
-          userId,
-          ownerType: 'MEMBER',
-        },
-      });
+      // APPROVAL 방이면 PENDING으로 생성
+      const participantStatus = (room as any).joinType === 'APPROVAL' ? 'PENDING' : 'ACTIVE';
+      try {
+        const participant = await this.prisma.chatParticipant.create({
+          data: {
+            roomId,
+            userId,
+            ownerType: 'MEMBER',
+            status: participantStatus,
+          },
+        });
+        if (participantStatus === 'PENDING') {
+          return { ...participant, isPending: true };
+        }
+        return participant;
+      } catch (error: any) {
+        // Race condition: unique constraint 위반 시 기존 레코드 반환
+        if (error.code === 'P2002') {
+          const record = await this.prisma.chatParticipant.findUnique({
+            where: { roomId_userId: { roomId, userId } },
+          });
+          return record;
+        }
+        throw error;
+      }
     }
 
     // ONE_TO_ONE, TWO_WAY: 초대 전용
-    throw new Error('초대 전용 채팅방입니다.');
+    throw new ForbiddenException('초대 전용 채팅방입니다.');
   }
 
   /**
-   * Approve participant join request
+   * Approve participant join request (PENDING → ACTIVE)
    */
   async approveJoin(
     roomId: string,
     userId: string,
     adminId: string,
   ): Promise<any> {
+    const participant = await this.prisma.chatParticipant.findUnique({
+      where: { roomId_userId: { roomId, userId } },
+    });
+
+    if (!participant) {
+      throw new NotFoundException('참여 요청을 찾을 수 없습니다.');
+    }
+    if (participant.status !== 'PENDING') {
+      return { success: true, message: '이미 승인된 참여자입니다.' };
+    }
+
+    await this.prisma.chatParticipant.update({
+      where: { id: participant.id },
+      data: { status: 'ACTIVE' },
+    });
+
     await this.logsService.createAdminLog({
       adminId: adminId,
       action: 'CHAT_JOIN_APPROVE',
@@ -261,6 +329,57 @@ export class ChatService {
     });
 
     return { success: true };
+  }
+
+  /**
+   * Reject participant join request (PENDING 레코드 삭제)
+   */
+  async rejectJoin(
+    roomId: string,
+    userId: string,
+    adminId: string,
+  ): Promise<any> {
+    const participant = await this.prisma.chatParticipant.findUnique({
+      where: { roomId_userId: { roomId, userId } },
+    });
+
+    if (!participant) {
+      throw new NotFoundException('참여 요청을 찾을 수 없습니다.');
+    }
+    if (participant.status !== 'PENDING') {
+      throw new ForbiddenException('대기 중인 요청만 거절할 수 있습니다.');
+    }
+
+    await this.prisma.chatParticipant.delete({
+      where: { id: participant.id },
+    });
+
+    await this.logsService.createAdminLog({
+      adminId: adminId,
+      action: 'CHAT_JOIN_REJECT',
+      target: roomId,
+      description: `Rejected user ${userId} from room`,
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * Get pending participants for a room
+   */
+  async getPendingParticipants(roomId: string): Promise<any[]> {
+    return this.prisma.chatParticipant.findMany({
+      where: {
+        roomId,
+        status: 'PENDING',
+      },
+      include: {
+        user: {
+          select: { id: true, name: true, nickname: true, profileImage: true },
+        },
+      },
+      orderBy: { joinedAt: 'desc' },
+    });
   }
 
   /**

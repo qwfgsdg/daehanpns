@@ -110,6 +110,14 @@ export default function ChatDetailPage() {
 
   const loadParticipants = async () => {
     try {
+      // 승인 대기 필터
+      if (statusFilter === 'pending') {
+        const pendingList = await ApiClient.getPendingParticipants(roomId);
+        setParticipants(pendingList);
+        setParticipantsTotal(pendingList.length);
+        return;
+      }
+
       const ownerType = roleFilter === 'OWNER' ? 'OWNER' : roleFilter === 'VICE_OWNER' ? 'VICE_OWNER' : roleFilter === 'MEMBER' ? 'MEMBER' : undefined;
       const isKicked = statusFilter === 'kicked' ? true : undefined;
       const isShadowBanned = statusFilter === 'shadowbanned' ? true : undefined;
@@ -549,6 +557,7 @@ export default function ChatDetailPage() {
                 >
                   <option value="">전체 상태</option>
                   <option value="normal">정상</option>
+                  <option value="pending">승인 대기</option>
                   <option value="kicked">강퇴됨</option>
                   <option value="shadowbanned">쉐도우밴</option>
                 </select>
@@ -621,7 +630,9 @@ export default function ChatDetailPage() {
                           </select>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          {participant.isKicked ? (
+                          {participant.status === 'PENDING' ? (
+                            <span className="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800">승인 대기</span>
+                          ) : participant.isKicked ? (
                             <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">강퇴됨</span>
                           ) : participant.isShadowBanned ? (
                             <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">쉐도우밴</span>
@@ -633,7 +644,42 @@ export default function ChatDetailPage() {
                           {formatDate(participant.joinedAt)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-                          {participant.isKicked ? (
+                          {participant.status === 'PENDING' ? (
+                            <>
+                              <Button
+                                variant="outline"
+                                className="text-xs py-1 px-2 text-green-600 hover:text-green-700"
+                                onClick={async () => {
+                                  if (!confirm('입장을 승인하시겠습니까?')) return;
+                                  try {
+                                    await ApiClient.approveJoin(roomId, participant.user.id);
+                                    alert('승인되었습니다.');
+                                    loadParticipants();
+                                  } catch (err: any) {
+                                    alert(err.message || '승인에 실패했습니다.');
+                                  }
+                                }}
+                              >
+                                승인
+                              </Button>
+                              <Button
+                                variant="outline"
+                                className="text-xs py-1 px-2 text-red-600 hover:text-red-700"
+                                onClick={async () => {
+                                  if (!confirm('입장 요청을 거절하시겠습니까?')) return;
+                                  try {
+                                    await ApiClient.rejectJoin(roomId, participant.user.id);
+                                    alert('거절되었습니다.');
+                                    loadParticipants();
+                                  } catch (err: any) {
+                                    alert(err.message || '거절에 실패했습니다.');
+                                  }
+                                }}
+                              >
+                                거절
+                              </Button>
+                            </>
+                          ) : participant.isKicked ? (
                             <Button
                               variant="outline"
                               className="text-xs py-1 px-2"

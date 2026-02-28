@@ -10,7 +10,8 @@ import { ChatRoomCard } from '@/components/chat';
 import { useChat } from '@/hooks';
 import { joinPublicRoom } from '@/lib/api';
 import { ChatRoom } from '@/types';
-import { COLORS, SPACING } from '@/constants';
+import { COLORS } from '@/constants';
+import { SPACING } from '@/theme';
 
 export default function PublicChatRoomsScreen() {
   const router = useRouter();
@@ -32,8 +33,13 @@ export default function PublicChatRoomsScreen() {
 
     setJoining(true);
     try {
-      await joinPublicRoom(roomId);
-      router.push(`/chat/${roomId}`);
+      const result = await joinPublicRoom(roomId);
+      if (result?.isPending) {
+        Alert.alert('입장 요청 완료', '관리자 승인 후 입장이 가능합니다.');
+        loadPublicRoomsData();
+      } else {
+        router.push(`/chat/${roomId}`);
+      }
     } catch (error: any) {
       Alert.alert('오류', error.message || '채팅방 참여에 실패했습니다.');
     } finally {
@@ -41,7 +47,36 @@ export default function PublicChatRoomsScreen() {
     }
   };
 
-  const handleRoomPress = (room: ChatRoom) => {
+  const handleRoomPress = (room: any) => {
+    // 이미 참여 중인 방은 바로 이동
+    if (room.isJoined) {
+      router.push(`/chat/${room.id}`);
+      return;
+    }
+
+    // 승인 대기 중
+    if (room.isPending) {
+      Alert.alert('승인 대기 중', '관리자 승인을 기다리고 있습니다.');
+      return;
+    }
+
+    // APPROVAL 방
+    if (room.joinType === 'APPROVAL') {
+      Alert.alert(
+        '입장 요청',
+        `'${room.name}' 채팅방은 관리자 승인이 필요합니다.\n입장을 요청하시겠습니까?`,
+        [
+          { text: '취소', style: 'cancel' },
+          {
+            text: '요청',
+            onPress: () => handleJoinRoom(room.id),
+          },
+        ]
+      );
+      return;
+    }
+
+    // FREE 방
     Alert.alert(
       '채팅방 참여',
       `'${room.name}' 채팅방에 참여하시겠습니까?`,

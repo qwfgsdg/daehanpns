@@ -241,7 +241,7 @@ export class AuthService {
       try {
         const manager = await this.managerService.findByReferralCode(data.referralCode);
         assignedManagerId = manager.id;
-        affiliateCode = manager.referralCode || manager.id;
+        affiliateCode = data.referralCode;
         referralSource = 'CODE';
       } catch (error) {
         throw new BadRequestException('유효하지 않은 추천 코드입니다.');
@@ -704,7 +704,7 @@ export class AuthService {
       try {
         const manager = await this.managerService.findByReferralCode(data.referralCode);
         assignedManagerId = manager.id;
-        affiliateCode = manager.referralCode || manager.id;
+        affiliateCode = data.referralCode;
         referralSource = 'CODE';
       } catch (error) {
         throw new BadRequestException('유효하지 않은 추천 코드입니다.');
@@ -781,8 +781,7 @@ export class AuthService {
         manager: {
           id: manager.id,
           name: manager.name,
-          region: manager.region,
-          referralCode: manager.referralCode,
+          affiliationCode: manager.affiliationCode,
         },
       };
     } catch (error) {
@@ -924,9 +923,7 @@ export class AuthService {
       managers: managers.map((m) => ({
         id: m.id,
         name: m.name,
-        region: m.region,
-        referralCode: m.referralCode,
-        tier: m.tier,
+        affiliationCode: m.affiliationCode,
       })),
     };
   }

@@ -10,7 +10,8 @@ import { RoleBadge } from './RoleBadge';
 import { EmojiReaction } from './EmojiReaction';
 import { SystemMessage } from './SystemMessage';
 import { formatChatTime } from '@/lib/utils';
-import { COLORS, SPACING, BORDER_RADIUS } from '@/constants';
+import { COLORS } from '@/constants';
+import { SPACING, BORDER_RADIUS } from '@/theme';
 
 interface Props {
   message: ChatMessageType;

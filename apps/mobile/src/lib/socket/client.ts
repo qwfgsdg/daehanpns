@@ -71,10 +71,7 @@ export const initSocket = async (): Promise<TypedSocket> => {
 /**
  * Socket 인스턴스 가져오기
  */
-export const getSocket = (): TypedSocket => {
-  if (!socket) {
-    throw new Error('Socket not initialized. Call initSocket() first.');
-  }
+export const getSocket = (): TypedSocket | null => {
   return socket;
 };
 
@@ -100,14 +97,14 @@ export const isSocketConnected = (): boolean => {
  * 방에 입장
  */
 export const joinRoom = (roomId: string): void => {
-  const socket = getSocket();
-  socket.emit('room:join', { roomId });
+  const s = getSocket();
+  if (s) s.emit('room:join', { roomId });
 };
 
 /**
  * 방에서 퇴장
  */
 export const leaveRoom = (roomId: string): void => {
-  const socket = getSocket();
-  socket.emit('room:leave', { roomId });
+  const s = getSocket();
+  if (s) s.emit('room:leave', { roomId });
 };

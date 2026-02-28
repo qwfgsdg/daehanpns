@@ -188,6 +188,7 @@ model ChatRoom {
   name            String?
   description     String?
   image           String?
+  joinType        JoinType            @default(FREE)
   isActive        Boolean             @default(true)
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
@@ -204,27 +205,29 @@ model ChatRoom {
 }
 
 model ChatParticipant {
-  id             String    @id @default(uuid())
+  id             String            @id @default(uuid())
   roomId         String
   userId         String
-  ownerType      OwnerType @default(MEMBER)
-  isViceOwner    Boolean   @default(false)
-  joinedAt       DateTime  @default(now())
+  ownerType      OwnerType         @default(MEMBER)
+  status         ParticipantStatus @default(ACTIVE)
+  isViceOwner    Boolean           @default(false)
+  joinedAt       DateTime          @default(now())
   lastReadAt     DateTime?
   leftAt         DateTime?
-  isKicked       Boolean   @default(false)
-  isShadowBanned Boolean   @default(false)
+  isKicked       Boolean           @default(false)
+  isShadowBanned Boolean           @default(false)
   kickReason     String?
   kickedAt       DateTime?
   kickedBy       String?
   shadowBannedAt DateTime?
   shadowBannedBy String?
-  room           ChatRoom  @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room           ChatRoom          @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([roomId, userId])
   @@index([roomId])
   @@index([userId])
+  @@index([status])
   @@index([isKicked])
   @@index([isShadowBanned])
 }
@@ -485,6 +488,16 @@ enum OwnerType {
   OWNER
   VICE_OWNER
   MEMBER
+}
+
+enum JoinType {
+  FREE
+  APPROVAL
+}
+
+enum ParticipantStatus {
+  PENDING
+  ACTIVE
 }
 
 enum NotificationType {

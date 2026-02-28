@@ -156,6 +156,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return { success: false, error: '강퇴된 채팅방입니다' };
       }
 
+      // 3.5. PENDING 상태 체크 (승인 대기 중)
+      if (participant?.status === 'PENDING') {
+        return { success: false, error: '승인 대기 중입니다' };
+      }
+
       // 4. 참여자 아님 or 퇴장
       if (!participant || participant.leftAt) {
         return { success: false, error: '참여 권한이 없습니다' };
@@ -171,11 +176,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.join(roomId);
       console.log(`[Socket] user ${userId} joined room ${roomId}`);
 
-      this.server.to(roomId).emit('room:user_joined', {
-        roomId, userId, userType, timestamp: new Date(),
-      });
+      // 이미 활성 참여자면 user_joined 이벤트 보내지 않음 (재접속 시 중복 방지)
+      // participant가 존재하고 leftAt이 null이면 이미 활성 참여자
+      // (REST join을 통해 새로 참여한 경우에만 emit)
 
-      return { success: true };
+      return { success: true, alreadyJoined: true };
     } catch (error) {
       console.error(`[Socket] room:join error:`, error.message);
       return { success: false, error: error.message };
@@ -597,6 +602,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           roomId: data.roomId,
           timestamp: new Date(),
         });
+      });
+
+      // Broadcast user_joined to the room
+      this.server.to(data.roomId).emit('room:user_joined', {
+        roomId: data.roomId,
+        userId: data.userId,
+        userType: 'user',
+        timestamp: new Date(),
       });
 
       return { success: true };

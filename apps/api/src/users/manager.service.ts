@@ -17,11 +17,8 @@ export class ManagerService {
       where: { referralCode },
       select: {
         id: true,
-        realName: true,
         salesName: true,
-        region: true,
-        referralCode: true,
-        tier: true,
+        affiliationCode: true,
       },
     });
 
@@ -29,10 +26,11 @@ export class ManagerService {
       throw new NotFoundException('유효하지 않은 추천 코드입니다');
     }
 
-    // 회원가입 시에는 영업자명만 표시
+    // 회원가입 시에는 영업자명+소속코드만 반환
     return {
-      ...manager,
+      id: manager.id,
       name: manager.salesName,
+      affiliationCode: manager.affiliationCode,
     };
   }
 
@@ -49,35 +47,27 @@ export class ManagerService {
     const managers = await this.prisma.admin.findMany({
       where: {
         ...(name && name.trim().length > 0
-          ? {
-              OR: [
-                { salesName: { contains: name.trim() } },
-                { realName: { contains: name.trim() } },
-              ],
-            }
+          ? { salesName: { contains: name.trim() } }
           : {}), // 빈 문자열이면 조건 없음 (모든 관리자)
         isActive: true,
         deletedAt: null,
       },
       select: {
         id: true,
-        realName: true,
         salesName: true,
-        region: true,
-        referralCode: true,
-        tier: true,
+        affiliationCode: true,
       },
       orderBy: [
-        { tier: 'asc' }, // 통합 > 대표 > 중간 > 일반 순
         { salesName: 'asc' },
       ],
       take: 100, // 최대 100명까지
     });
 
-    // 회원가입 시에는 영업자명만 표시
+    // 회원가입 시에는 영업자명+소속코드만 반환
     return managers.map((manager) => ({
-      ...manager,
+      id: manager.id,
       name: manager.salesName,
+      affiliationCode: manager.affiliationCode,
     }));
   }
 

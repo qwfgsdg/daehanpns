@@ -27,6 +27,16 @@ export enum OwnerType {
   MEMBER = 'MEMBER',         // 일반 참여자
 }
 
+export enum JoinType {
+  FREE = 'FREE',           // 자유 입장
+  APPROVAL = 'APPROVAL',   // 승인 필요
+}
+
+export enum ParticipantStatus {
+  PENDING = 'PENDING',     // 승인 대기
+  ACTIVE = 'ACTIVE',       // 활성 참여자
+}
+
 export enum NotificationType {
   SYSTEM = 'SYSTEM',         // 시스템 알림
   CHAT = 'CHAT',             // 채팅 알림

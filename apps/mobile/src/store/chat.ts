@@ -10,6 +10,7 @@ interface ChatState {
   currentRoomId: string | null;
   messages: Record<string, ChatMessage[]>; // roomId → messages
   typingUsers: Record<string, string[]>;   // roomId → userNames
+  hasMoreMessages: Record<string, boolean>; // roomId → hasMore
 
   // Actions
   setRooms: (rooms: ChatRoom[]) => void;
@@ -22,6 +23,7 @@ interface ChatState {
   setMessages: (roomId: string, messages: ChatMessage[]) => void;
   addMessage: (roomId: string, message: ChatMessage) => void;
   prependMessages: (roomId: string, messages: ChatMessage[]) => void;
+  setHasMore: (roomId: string, hasMore: boolean) => void;
   updateMessage: (
     roomId: string,
     messageId: string,
@@ -47,6 +49,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   currentRoomId: null,
   messages: {},
   typingUsers: {},
+  hasMoreMessages: {},
 
   setRooms: (rooms) => set({ rooms }),
 
@@ -70,6 +73,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setMessages: (roomId, messages) =>
     set((state) => ({
       messages: { ...state.messages, [roomId]: messages },
+      hasMoreMessages: { ...state.hasMoreMessages, [roomId]: true },
     })),
 
   addMessage: (roomId, message) =>
@@ -88,11 +92,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }),
 
   prependMessages: (roomId, messages) =>
+    set((state) => {
+      const existing = state.messages[roomId] || [];
+      const existingIds = new Set(existing.map((m) => m.id));
+      const newMessages = messages.filter((m) => !existingIds.has(m.id));
+      return {
+        messages: {
+          ...state.messages,
+          [roomId]: [...newMessages, ...existing],
+        },
+      };
+    }),
+
+  setHasMore: (roomId, hasMore) =>
     set((state) => ({
-      messages: {
-        ...state.messages,
-        [roomId]: [...messages, ...(state.messages[roomId] || [])],
-      },
+      hasMoreMessages: { ...state.hasMoreMessages, [roomId]: hasMore },
     })),
 
   updateMessage: (roomId, messageId, updates) =>
@@ -158,5 +172,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       currentRoomId: null,
       messages: {},
       typingUsers: {},
+      hasMoreMessages: {},
     }),
 }));

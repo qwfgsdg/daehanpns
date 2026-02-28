@@ -16,14 +16,27 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.daehanpns.mobile"
+      "bundleIdentifier": "com.daehanpns.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "프로필 사진 촬영 및 채팅 이미지 전송에 카메라를 사용합니다.",
+        "NSPhotoLibraryUsageDescription": "프로필 사진 및 채팅 이미지 전송을 위해 갤러리에 접근합니다."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.daehanpns.mobile"
+      "package": "com.daehanpns.mobile",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -31,6 +44,13 @@
     "scheme": "daehanpns",
     "plugins": [
       "expo-router"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "37f6bc0e-6376-4f16-927a-152c70182305"
+      }
+    },
+    "owner": "gozlddlek1"
   }
 }

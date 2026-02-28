@@ -15,7 +15,8 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks';
 import { useAuthStore, useUIStore } from '@/store';
 import { updateMyProfile, getErrorMessage } from '@/lib/api';
-import { COLORS, SPACING } from '@/constants';
+import { COLORS } from '@/constants';
+import { SPACING } from '@/theme';
 
 export default function ProfileEditScreen() {
   const { user } = useAuth();

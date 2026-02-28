@@ -47,8 +47,9 @@ export const getChatMessages = async (
 /**
  * 공개 채팅방 입장
  */
-export const joinPublicRoom = async (roomId: string): Promise<void> => {
-  await apiClient.post(`/chat/rooms/${roomId}/join`);
+export const joinPublicRoom = async (roomId: string): Promise<any> => {
+  const response = await apiClient.post(`/chat/rooms/${roomId}/join`);
+  return response.data;
 };
 
 /**

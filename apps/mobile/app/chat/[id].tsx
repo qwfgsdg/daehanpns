@@ -14,20 +14,21 @@ import {
 } from '@/components/chat';
 import { useChat, usePermission, useAuth } from '@/hooks';
 import { formatDateDivider, isSameDay, isSameMinute } from '@/lib/utils';
-import { COLORS, SPACING } from '@/constants';
+import { COLORS } from '@/constants';
+import { SPACING } from '@/theme';
 import { Text } from 'react-native-paper';
 
 export default function ChatRoomScreen() {
   const { id: roomId } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
-  const { currentRoom, currentMessages, currentTypingUsers, loadMessages } = useChat(roomId);
+  const { currentRoom, currentMessages, currentTypingUsers, hasMore, loadMessages } = useChat(roomId);
   const permission = usePermission(currentRoom);
 
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // 무한 스크롤 (과거 메시지 로드)
   const handleLoadMore = async () => {
-    if (isLoadingMore || !currentRoom) return;
+    if (isLoadingMore || !currentRoom || !hasMore) return;
 
     setIsLoadingMore(true);
     try {
