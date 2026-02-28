@@ -266,6 +266,8 @@ export class ApiClient {
     tier: string;
     region?: string;
     logoUrl?: string;
+    chatNickname?: string;
+    chatProfileImage?: string;
   }) {
     return this.request<any>('/admins', {
       method: 'POST',
@@ -280,6 +282,8 @@ export class ApiClient {
     tier?: string;
     region?: string;
     logoUrl?: string;
+    chatNickname?: string;
+    chatProfileImage?: string;
   }) {
     return this.request<any>(`/admins/${id}`, {
       method: 'PUT',
