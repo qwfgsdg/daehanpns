@@ -261,42 +261,42 @@ export class ChatService {
       return existing;
     }
 
-    // 방 타입별 권한 체크
-    if (room.type === 'ONE_TO_N') {
-      // Expert 유료방 구독 체크
-      const hasAccess = await this.checkSubscriptionAccess(roomId, userId);
-      if (!hasAccess) {
-        throw new ForbiddenException('구독이 필요한 채팅방입니다.');
-      }
-      // APPROVAL 방이면 PENDING으로 생성
-      const participantStatus = (room as any).joinType === 'APPROVAL' ? 'PENDING' : 'ACTIVE';
-      try {
-        const participant = await this.prisma.chatParticipant.create({
-          data: {
-            roomId,
-            userId,
-            ownerType: 'MEMBER',
-            status: participantStatus,
-          },
-        });
-        if (participantStatus === 'PENDING') {
-          return { ...participant, isPending: true };
-        }
-        return participant;
-      } catch (error: any) {
-        // Race condition: unique constraint 위반 시 기존 레코드 반환
-        if (error.code === 'P2002') {
-          const record = await this.prisma.chatParticipant.findUnique({
-            where: { roomId_userId: { roomId, userId } },
-          });
-          return record;
-        }
-        throw error;
-      }
+    // 1:1은 초대 전용
+    if (room.type === 'ONE_TO_ONE') {
+      throw new ForbiddenException('초대 전용 채팅방입니다.');
     }
 
-    // ONE_TO_ONE, TWO_WAY: 초대 전용
-    throw new ForbiddenException('초대 전용 채팅방입니다.');
+    // ONE_TO_N, TWO_WAY: 공개방 입장 처리
+    // Expert 유료방 구독 체크 (Expert에 연결된 방만 체크, 아니면 무료)
+    const hasAccess = await this.checkSubscriptionAccess(roomId, userId);
+    if (!hasAccess) {
+      throw new ForbiddenException('구독이 필요한 채팅방입니다.');
+    }
+    // APPROVAL 방이면 PENDING으로 생성
+    const participantStatus = (room as any).joinType === 'APPROVAL' ? 'PENDING' : 'ACTIVE';
+    try {
+      const participant = await this.prisma.chatParticipant.create({
+        data: {
+          roomId,
+          userId,
+          ownerType: 'MEMBER',
+          status: participantStatus,
+        },
+      });
+      if (participantStatus === 'PENDING') {
+        return { ...participant, isPending: true };
+      }
+      return participant;
+    } catch (error: any) {
+      // Race condition: unique constraint 위반 시 기존 레코드 반환
+      if (error.code === 'P2002') {
+        const record = await this.prisma.chatParticipant.findUnique({
+          where: { roomId_userId: { roomId, userId } },
+        });
+        return record;
+      }
+      throw error;
+    }
   }
 
   /**

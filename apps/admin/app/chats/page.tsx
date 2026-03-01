@@ -434,6 +434,11 @@ export default function ChatsPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {room.participantCount}{room.maxParticipants ? `/${room.maxParticipants}` : ''}
+                        {(room as any).pendingCount > 0 && (
+                          <span className="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-red-500 text-white font-medium">
+                            대기 {(room as any).pendingCount}
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {room.todayMessageCount}

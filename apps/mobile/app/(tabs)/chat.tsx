@@ -2,8 +2,8 @@
  * 채팅 목록 화면
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { View, StyleSheet, FlatList, RefreshControl, TextInput } from 'react-native';
 import { Text } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { ChatRoomCard } from '@/components/chat';
@@ -15,6 +15,7 @@ export default function ChatListScreen() {
   const router = useRouter();
   const { rooms, loadRooms } = useChat();
   const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     loadRooms();
@@ -30,6 +31,14 @@ export default function ChatListScreen() {
     router.push(`/chat/${roomId}`);
   };
 
+  const filteredRooms = useMemo(() => {
+    if (!searchQuery.trim()) return rooms;
+    const q = searchQuery.trim().toLowerCase();
+    return rooms.filter((room) =>
+      room.name?.toLowerCase().includes(q)
+    );
+  }, [rooms, searchQuery]);
+
   return (
     <View style={styles.container}>
       {rooms.length === 0 ? (
@@ -41,19 +50,36 @@ export default function ChatListScreen() {
           </Text>
         </View>
       ) : (
-        <FlatList
-          data={rooms}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <ChatRoomCard
-              room={item}
-              onPress={() => handleRoomPress(item.id)}
+        <>
+          <View style={styles.searchContainer}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="채팅방 검색..."
+              placeholderTextColor={COLORS.textSecondary}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCorrect={false}
             />
-          )}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-        />
+          </View>
+          <FlatList
+            data={filteredRooms}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <ChatRoomCard
+                room={item}
+                onPress={() => handleRoomPress(item.id)}
+              />
+            )}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptySubtext}>검색 결과가 없습니다</Text>
+              </View>
+            }
+          />
+        </>
       )}
     </View>
   );
@@ -64,8 +90,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  listContent: {
-    padding: SPACING.sm,
+  searchContainer: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    backgroundColor: COLORS.background,
+  },
+  searchInput: {
+    backgroundColor: COLORS.gray100,
+    borderRadius: 8,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    fontSize: 14,
+    color: COLORS.textPrimary,
   },
   emptyContainer: {
     flex: 1,

@@ -2,8 +2,8 @@
  * 공개 채팅방 목록 화면
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, StyleSheet, FlatList, Alert, RefreshControl } from 'react-native';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { View, StyleSheet, FlatList, Alert, RefreshControl, TextInput } from 'react-native';
 import { Text } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { ChatRoomCard } from '@/components/chat';
@@ -19,6 +19,7 @@ export default function PublicChatRoomsScreen() {
   const [publicRooms, setPublicRooms] = useState<ChatRoom[]>([]);
   const [joining, setJoining] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     loadPublicRoomsData();
@@ -28,6 +29,14 @@ export default function PublicChatRoomsScreen() {
     const data = await loadPublicRooms();
     setPublicRooms(data);
   };
+
+  const filteredRooms = useMemo(() => {
+    if (!searchQuery.trim()) return publicRooms;
+    const q = searchQuery.trim().toLowerCase();
+    return publicRooms.filter((room) =>
+      room.name?.toLowerCase().includes(q)
+    );
+  }, [publicRooms, searchQuery]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -49,12 +58,8 @@ export default function PublicChatRoomsScreen() {
         router.push(`/chat/${roomId}`);
       }
     } catch (error: any) {
-      if (error.response?.status === 403) {
-        Alert.alert('구독 필요', '이 채팅방은 구독이 필요합니다.');
-      } else {
-        const msg = error.response?.data?.message || error.message || '채팅방 참여에 실패했습니다.';
-        Alert.alert('오류', msg);
-      }
+      const msg = error.response?.data?.message || error.message || '채팅방 참여에 실패했습니다.';
+      Alert.alert('오류', msg);
     } finally {
       setJoining(false);
     }
@@ -114,19 +119,36 @@ export default function PublicChatRoomsScreen() {
           </Text>
         </View>
       ) : (
-        <FlatList
-          data={publicRooms}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <ChatRoomCard
-              room={item}
-              onPress={() => handleRoomPress(item)}
+        <>
+          <View style={styles.searchContainer}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="채팅방 검색..."
+              placeholderTextColor={COLORS.textSecondary}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCorrect={false}
             />
-          )}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-        />
+          </View>
+          <FlatList
+            data={filteredRooms}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <ChatRoomCard
+                room={item}
+                onPress={() => handleRoomPress(item)}
+              />
+            )}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptySubtext}>검색 결과가 없습니다</Text>
+              </View>
+            }
+          />
+        </>
       )}
     </View>
   );
@@ -136,6 +158,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  searchContainer: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    backgroundColor: COLORS.background,
+  },
+  searchInput: {
+    backgroundColor: COLORS.gray100,
+    borderRadius: 8,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    fontSize: 14,
+    color: COLORS.textPrimary,
   },
   listContent: {
     padding: SPACING.sm,
