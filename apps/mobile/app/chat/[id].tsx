@@ -7,6 +7,7 @@ import { View, StyleSheet, KeyboardAvoidingView, Platform, Alert, TouchableOpaci
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import ImageViewing from 'react-native-image-viewing';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useHeaderHeight } from '@react-navigation/elements';
 import {
   ChatMessage,
   ChatInput,
@@ -25,6 +26,7 @@ import { ChatRoom } from '@/types';
 export default function ChatRoomScreen() {
   const { id: roomId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const headerHeight = useHeaderHeight();
   const { user } = useAuth();
   const { currentRoom, currentMessages, currentTypingUsers, hasMore, loadMessages, handleLeaveRoom } = useChat(roomId);
   const { addRoom } = useChatStore();
@@ -253,8 +255,8 @@ export default function ChatRoomScreen() {
 
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        behavior="padding"
+        keyboardVerticalOffset={headerHeight}
       >
         {/* 검색바 */}
         {isSearchMode && (
