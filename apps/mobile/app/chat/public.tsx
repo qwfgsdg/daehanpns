@@ -2,8 +2,8 @@
  * 공개 채팅방 목록 화면
  */
 
-import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, FlatList, Alert } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, StyleSheet, FlatList, Alert, RefreshControl } from 'react-native';
 import { Text } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { ChatRoomCard } from '@/components/chat';
@@ -18,6 +18,7 @@ export default function PublicChatRoomsScreen() {
   const { loadPublicRooms } = useChat();
   const [publicRooms, setPublicRooms] = useState<ChatRoom[]>([]);
   const [joining, setJoining] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadPublicRoomsData();
@@ -27,6 +28,12 @@ export default function PublicChatRoomsScreen() {
     const data = await loadPublicRooms();
     setPublicRooms(data);
   };
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadPublicRoomsData();
+    setRefreshing(false);
+  }, []);
 
   const handleJoinRoom = async (roomId: string) => {
     if (joining) return;
@@ -116,6 +123,9 @@ export default function PublicChatRoomsScreen() {
               onPress={() => handleRoomPress(item)}
             />
           )}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         />
       )}
     </View>

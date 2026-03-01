@@ -2,8 +2,8 @@
  * 채팅 목록 화면
  */
 
-import React, { useEffect } from 'react';
-import { View, StyleSheet, FlatList } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
 import { Text } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { ChatRoomCard } from '@/components/chat';
@@ -14,10 +14,17 @@ import { SPACING } from '@/theme';
 export default function ChatListScreen() {
   const router = useRouter();
   const { rooms, loadRooms } = useChat();
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadRooms();
   }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadRooms();
+    setRefreshing(false);
+  }, [loadRooms]);
 
   const handleRoomPress = (roomId: string) => {
     router.push(`/chat/${roomId}`);
@@ -43,6 +50,9 @@ export default function ChatListScreen() {
               onPress={() => handleRoomPress(item.id)}
             />
           )}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         />
       )}
     </View>

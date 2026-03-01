@@ -4,14 +4,14 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useChatStore, useAuthStore } from '@/store';
-import { getChatRooms, getChatMessages, getPublicChatRooms } from '@/lib/api';
+import { getChatRooms, getChatMessages, getPublicChatRooms, leaveRoom as leaveRoomApi } from '@/lib/api';
 import {
   initSocket,
   setupChatHandlers,
   cleanupChatHandlers,
   disconnectSocket,
   joinRoom,
-  leaveRoom,
+  leaveRoom as leaveRoomSocket,
 } from '@/lib/socket';
 
 export const useChat = (roomId?: string) => {
@@ -26,6 +26,7 @@ export const useChat = (roomId?: string) => {
     setCurrentRoom,
     prependMessages,
     setHasMore,
+    removeRoom,
   } = useChatStore();
 
   const { isAuthenticated } = useAuthStore();
@@ -131,7 +132,7 @@ export const useChat = (roomId?: string) => {
       }
 
       return () => {
-        leaveRoom(roomId);
+        leaveRoomSocket(roomId);
       };
     } else {
       setCurrentRoom(null);
@@ -148,6 +149,13 @@ export const useChat = (roomId?: string) => {
 
   const hasMore = currentRoomId ? hasMoreMessages[currentRoomId] !== false : true;
 
+  // 채팅방 나가기 (REST API + Socket + Store 제거)
+  const handleLeaveRoom = useCallback(async (targetRoomId: string) => {
+    await leaveRoomApi(targetRoomId);
+    leaveRoomSocket(targetRoomId);
+    removeRoom(targetRoomId);
+  }, [removeRoom]);
+
   return {
     rooms: safeRooms,
     currentRoom,
@@ -159,5 +167,6 @@ export const useChat = (roomId?: string) => {
     loadRooms,
     loadPublicRooms,
     loadMessages,
+    handleLeaveRoom,
   };
 };

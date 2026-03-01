@@ -76,7 +76,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setMessages: (roomId, messages) =>
     set((state) => ({
-      messages: { ...state.messages, [roomId]: messages },
+      messages: {
+        ...state.messages,
+        [roomId]: [...messages].sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        ),
+      },
       hasMoreMessages: { ...state.hasMoreMessages, [roomId]: true },
     })),
 

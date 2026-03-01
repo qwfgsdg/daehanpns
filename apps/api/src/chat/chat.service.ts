@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../modules/prisma/prisma.service';
 import { LogsService } from '../modules/logs/logs.service';
 import { RedisService } from '../modules/redis/redis.service';
@@ -96,6 +96,7 @@ export class ChatService {
     take?: number;
   }) {
     const where: Prisma.ChatRoomWhereInput = {
+      deletedAt: null,
       participants: {
         some: {
           userId,
@@ -149,8 +150,9 @@ export class ChatService {
     userId?: string;
   }) {
     const where: Prisma.ChatRoomWhereInput = {
-      type: 'ONE_TO_N',
+      type: { in: ['ONE_TO_N', 'TWO_WAY'] },
       isActive: true,
+      deletedAt: null,
     };
 
     if (params.search) {
@@ -386,10 +388,17 @@ export class ChatService {
    * Leave room (soft delete)
    */
   async leaveRoom(roomId: string, userId: string): Promise<void> {
+    const participant = await this.prisma.chatParticipant.findUnique({
+      where: { roomId_userId: { roomId, userId } },
+    });
+    if (!participant) {
+      throw new NotFoundException('참여자를 찾을 수 없습니다.');
+    }
+    if (participant.ownerType === 'OWNER') {
+      throw new ForbiddenException('방장은 채팅방을 나갈 수 없습니다.');
+    }
     await this.prisma.chatParticipant.update({
-      where: {
-        roomId_userId: { roomId, userId },
-      },
+      where: { roomId_userId: { roomId, userId } },
       data: { leftAt: new Date() },
     });
   }

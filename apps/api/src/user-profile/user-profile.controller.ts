@@ -8,6 +8,7 @@ import {
   Req,
   UseGuards,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { PrismaService } from '../modules/prisma/prisma.service';
@@ -61,33 +62,49 @@ export class UserProfileController {
     const updateData: any = {};
 
     if (body.name !== undefined) updateData.name = body.name;
-    if (body.nickname !== undefined) updateData.nickname = body.nickname;
+    if (body.nickname !== undefined) updateData.nickname = body.nickname?.trim() || null;
     if (body.gender !== undefined) updateData.gender = body.gender;
-    if (body.birthDate !== undefined) updateData.birthDate = body.birthDate ? new Date(body.birthDate) : null;
+    if (body.birthDate !== undefined) {
+      if (body.birthDate) {
+        const parsed = new Date(body.birthDate);
+        if (isNaN(parsed.getTime())) {
+          throw new BadRequestException('유효하지 않은 생년월일입니다.');
+        }
+        updateData.birthDate = parsed;
+      } else {
+        updateData.birthDate = null;
+      }
+    }
     if (body.profileImage !== undefined) updateData.profileImage = body.profileImage;
 
-    const user = await this.prisma.user.update({
-      where: { id: req.user.sub },
-      data: updateData,
-      select: {
-        id: true,
-        phone: true,
-        name: true,
-        nickname: true,
-        gender: true,
-        birthDate: true,
-        profileImage: true,
-        provider: true,
-        memberType: true,
-        managerId: true,
-        affiliateCode: true,
-        isBanned: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-
-    return user;
+    try {
+      const user = await this.prisma.user.update({
+        where: { id: req.user.sub },
+        data: updateData,
+        select: {
+          id: true,
+          phone: true,
+          name: true,
+          nickname: true,
+          gender: true,
+          birthDate: true,
+          profileImage: true,
+          provider: true,
+          memberType: true,
+          managerId: true,
+          affiliateCode: true,
+          isBanned: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+      return user;
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        throw new ConflictException('이미 사용 중인 닉네임입니다.');
+      }
+      throw error;
+    }
   }
 
   /**
@@ -119,8 +136,8 @@ export class UserProfileController {
       throw new BadRequestException('현재 비밀번호가 일치하지 않습니다.');
     }
 
-    if (!body.newPassword || body.newPassword.length < 6) {
-      throw new BadRequestException('새 비밀번호는 6자 이상이어야 합니다.');
+    if (!body.newPassword || body.newPassword.length < 8) {
+      throw new BadRequestException('새 비밀번호는 8자 이상이어야 합니다.');
     }
 
     const hashedPassword = await bcrypt.hash(body.newPassword, 10);

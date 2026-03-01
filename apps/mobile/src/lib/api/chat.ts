@@ -39,7 +39,7 @@ export const getChatMessages = async (
   limit = 50
 ): Promise<ChatMessage[]> => {
   const response = await apiClient.get(`/chat/rooms/${roomId}/messages`, {
-    params: { offset, limit },
+    params: { skip: offset, take: limit },
   });
   return response.data?.items || response.data || [];
 };

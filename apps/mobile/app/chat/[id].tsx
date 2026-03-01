@@ -3,9 +3,10 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
-import { useLocalSearchParams, Stack } from 'expo-router';
+import { View, StyleSheet, KeyboardAvoidingView, Platform, Alert, TouchableOpacity } from 'react-native';
+import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { FlashList } from '@shopify/flash-list';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   ChatMessage,
   ChatInput,
@@ -23,8 +24,9 @@ import { ChatRoom } from '@/types';
 
 export default function ChatRoomScreen() {
   const { id: roomId } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const { user } = useAuth();
-  const { currentRoom, currentMessages, currentTypingUsers, hasMore, loadMessages } = useChat(roomId);
+  const { currentRoom, currentMessages, currentTypingUsers, hasMore, loadMessages, handleLeaveRoom } = useChat(roomId);
   const { addRoom } = useChatStore();
   const [fallbackRoom, setFallbackRoom] = useState<ChatRoom | null>(null);
 
@@ -45,6 +47,35 @@ export default function ChatRoomScreen() {
 
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
+  // 나가기 버튼 핸들러
+  const onLeavePress = () => {
+    // OWNER는 나가기 불가
+    const myParticipant = activeRoom?.participants?.find((p: any) => p.userId === user?.id);
+    if (myParticipant?.ownerType === 'OWNER') {
+      Alert.alert('알림', '방장은 채팅방을 나갈 수 없습니다.');
+      return;
+    }
+    Alert.alert(
+      '채팅방 나가기',
+      '정말로 이 채팅방을 나가시겠습니까?',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '나가기',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await handleLeaveRoom(roomId!);
+              router.back();
+            } catch (err) {
+              Alert.alert('오류', '채팅방 나가기에 실패했습니다.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // 무한 스크롤 (과거 메시지 로드)
   const handleLoadMore = async () => {
     if (isLoadingMore || !activeRoom || !hasMore) return;
@@ -60,44 +91,32 @@ export default function ChatRoomScreen() {
     }
   };
 
-  // 날짜 구분선이 필요한지 확인
+  // 날짜 구분선이 필요한지 확인 (inverted + DESC: index 0=최신, last=가장 오래된)
   const shouldShowDateDivider = (index: number) => {
-    if (index === 0) return true;
+    if (index === currentMessages.length - 1) return true; // 가장 오래된 메시지 (화면 최상단)
     const current = currentMessages[index];
-    const previous = currentMessages[index - 1];
-    return !isSameDay(current.createdAt, previous.createdAt);
+    const next = currentMessages[index + 1]; // 화면상 위(더 오래된) 메시지
+    return !isSameDay(current.createdAt, next.createdAt);
   };
 
-  // 송신자 정보 표시 여부
+  // 송신자 정보 표시 여부 (inverted: 그룹의 최상단=가장 오래된 쪽에 표시)
   const shouldShowSender = (index: number) => {
-    if (index === 0) return true;
+    if (index === currentMessages.length - 1) return true; // 가장 오래된 메시지
     const current = currentMessages[index];
-    const previous = currentMessages[index - 1];
-
-    // 시스템 메시지는 항상 표시
     if (current.type === 'SYSTEM') return true;
-
-    // 다른 사람이면 표시
-    if (current.senderId !== previous.senderId) return true;
-
-    // 날짜가 다르면 표시
-    if (!isSameDay(current.createdAt, previous.createdAt)) return true;
-
+    const next = currentMessages[index + 1]; // 화면상 위(더 오래된) 메시지
+    if (current.senderId !== next.senderId) return true;
+    if (!isSameDay(current.createdAt, next.createdAt)) return true;
     return false;
   };
 
-  // 시간 표시 여부
+  // 시간 표시 여부 (inverted: 그룹의 최하단=가장 최신 쪽에 표시)
   const shouldShowTime = (index: number) => {
-    if (index === currentMessages.length - 1) return true;
+    if (index === 0) return true; // 가장 최신 메시지 (화면 최하단)
     const current = currentMessages[index];
-    const next = currentMessages[index + 1];
-
-    // 다음 메시지가 다른 사람이면 표시
-    if (current.senderId !== next.senderId) return true;
-
-    // 다음 메시지와 시간이 다르면 표시
-    if (!isSameMinute(current.createdAt, next.createdAt)) return true;
-
+    const prev = currentMessages[index - 1]; // 화면상 아래(더 최신) 메시지
+    if (current.senderId !== prev.senderId) return true;
+    if (!isSameMinute(current.createdAt, prev.createdAt)) return true;
     return false;
   };
 
@@ -165,6 +184,11 @@ export default function ChatRoomScreen() {
         options={{
           title: activeRoom.name,
           headerBackTitle: '뒤로',
+          headerRight: () => (
+            <TouchableOpacity onPress={onLeavePress} style={{ marginRight: 8 }}>
+              <MaterialCommunityIcons name="logout" size={24} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          ),
         }}
       />
 
