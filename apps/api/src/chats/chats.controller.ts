@@ -17,7 +17,7 @@ import { JwtAuthGuard } from '../modules/auth/guards/jwt-auth.guard';
 import { AdminRoleGuard } from '../modules/auth/guards/admin-role.guard';
 import { PermissionGuard } from '../modules/auth/guards/permission.guard';
 import { RequirePermission } from '../decorators/require-permission.decorator';
-import { ChatType, OwnerType } from '@prisma/client';
+import { ChatType, OwnerType, JoinType } from '@prisma/client';
 
 @Controller('chats')
 @UseGuards(JwtAuthGuard, AdminRoleGuard)
@@ -68,6 +68,7 @@ export class ChatsController {
     data: {
       type: ChatType;
       category?: 'STOCK' | 'COIN';
+      joinType?: JoinType;
       name?: string;
       description?: string;
       image?: string;

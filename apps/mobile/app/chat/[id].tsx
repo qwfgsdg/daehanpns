@@ -3,9 +3,9 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, StyleSheet, KeyboardAvoidingView, Platform, Alert, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, KeyboardAvoidingView, Platform, Alert, TouchableOpacity, FlatList } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
-import { FlashList } from '@shopify/flash-list';
+import ImageViewing from 'react-native-image-viewing';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   ChatMessage,
@@ -46,6 +46,32 @@ export default function ChatRoomScreen() {
   const permission = usePermission(activeRoom);
 
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [imageViewerVisible, setImageViewerVisible] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+
+  // 이미지 URL 판별
+  const isImageUrl = (url: string): boolean => {
+    try {
+      const pathname = new URL(url).pathname;
+      return /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(pathname);
+    } catch {
+      return /\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?|$)/i.test(url);
+    }
+  };
+
+  // 이미지 목록 (뷰어용)
+  const imageUrls = useMemo(() =>
+    currentMessages
+      .filter(m => m.fileUrl && isImageUrl(m.fileUrl))
+      .map(m => ({ uri: m.fileUrl! })),
+    [currentMessages]
+  );
+
+  const onImagePress = (imageUrl: string) => {
+    const idx = imageUrls.findIndex(img => img.uri === imageUrl);
+    setSelectedImageIndex(idx >= 0 ? idx : 0);
+    setImageViewerVisible(true);
+  };
 
   // 나가기 버튼 핸들러
   const onLeavePress = () => {
@@ -148,6 +174,7 @@ export default function ChatRoomScreen() {
           senderRole={
             activeRoom?.participants?.find((p) => p.userId === item.senderId)?.ownerType || 'MEMBER'
           }
+          onImagePress={onImagePress}
         />
       </View>
     );
@@ -198,16 +225,15 @@ export default function ChatRoomScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         {/* 메시지 리스트 */}
-        <FlashList
+        <FlatList
           data={currentMessages}
           renderItem={renderItem}
-          estimatedItemSize={80}
           inverted
           keyExtractor={(item) => item.id}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.5}
-          ListHeaderComponent={ListHeaderComponent}
-          ListFooterComponent={ListFooterComponent}
+          ListHeaderComponent={ListFooterComponent}
+          ListFooterComponent={ListHeaderComponent}
           contentContainerStyle={styles.listContent}
         />
 
@@ -218,6 +244,13 @@ export default function ChatRoomScreen() {
           roomType={activeRoom.type}
         />
       </KeyboardAvoidingView>
+
+      <ImageViewing
+        images={imageUrls}
+        imageIndex={selectedImageIndex}
+        visible={imageViewerVisible}
+        onRequestClose={() => setImageViewerVisible(false)}
+      />
     </>
   );
 }

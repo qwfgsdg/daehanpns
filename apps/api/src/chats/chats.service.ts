@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../modules/prisma/prisma.service';
 import { LogsService } from '../modules/logs/logs.service';
-import { ChatRoom, ChatType } from '@prisma/client';
+import { ChatRoom, ChatType, JoinType } from '@prisma/client';
 
 @Injectable()
 export class ChatsService {
@@ -218,6 +218,7 @@ export class ChatsService {
     data: {
       type: ChatType;
       category?: 'STOCK' | 'COIN';
+      joinType?: JoinType;
       name?: string;
       description?: string;
       image?: string;
@@ -251,6 +252,7 @@ export class ChatsService {
       data: {
         type: data.type,
         category: data.category || 'STOCK',
+        joinType: data.joinType || 'FREE',
         name: data.name,
         description: data.description,
         image: data.image,

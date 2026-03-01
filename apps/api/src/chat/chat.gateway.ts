@@ -166,13 +166,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return { success: false, error: '참여 권한이 없습니다' };
       }
 
-      // 5. 구독 기반 방 체크
-      const hasSubscription = await this.chatService.checkSubscriptionAccess(roomId, userId);
-      if (!hasSubscription) {
-        return { success: false, error: '구독이 만료되었습니다' };
-      }
-
-      // 6. 소켓 룸 join
+      // 5. 소켓 룸 join (구독 체크는 REST joinRoom에서 이미 완료)
       client.join(roomId);
       console.log(`[Socket] user ${userId} joined room ${roomId}`);
 
