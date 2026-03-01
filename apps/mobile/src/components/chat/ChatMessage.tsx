@@ -48,9 +48,19 @@ const ChatMessageComponent: React.FC<Props> = ({
     );
   }
 
+  // fileUrl에서 이미지 여부 판별 (S3 쿼리파라미터 대응)
+  const isImageUrl = (url: string): boolean => {
+    try {
+      const pathname = new URL(url).pathname;
+      return /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(pathname);
+    } catch {
+      return /\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?|$)/i.test(url);
+    }
+  };
+
   // 이미지 메시지
   const renderImage = () => {
-    if (message.type !== 'IMAGE' || !message.fileUrl) return null;
+    if (!message.fileUrl || !isImageUrl(message.fileUrl)) return null;
 
     return (
       <TouchableOpacity
@@ -69,7 +79,7 @@ const ChatMessageComponent: React.FC<Props> = ({
 
   // 파일 메시지
   const renderFile = () => {
-    if (message.type !== 'FILE' || !message.fileUrl) return null;
+    if (!message.fileUrl || isImageUrl(message.fileUrl)) return null;
 
     return (
       <View style={styles.fileContainer}>

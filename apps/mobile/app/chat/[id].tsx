@@ -13,22 +13,41 @@ import {
   SystemMessage,
 } from '@/components/chat';
 import { useChat, usePermission, useAuth } from '@/hooks';
+import { getChatRoom } from '@/lib/api';
+import { useChatStore } from '@/store';
 import { formatDateDivider, isSameDay, isSameMinute } from '@/lib/utils';
 import { COLORS } from '@/constants';
 import { SPACING } from '@/theme';
 import { Text } from 'react-native-paper';
+import { ChatRoom } from '@/types';
 
 export default function ChatRoomScreen() {
   const { id: roomId } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const { currentRoom, currentMessages, currentTypingUsers, hasMore, loadMessages } = useChat(roomId);
-  const permission = usePermission(currentRoom);
+  const { addRoom } = useChatStore();
+  const [fallbackRoom, setFallbackRoom] = useState<ChatRoom | null>(null);
+
+  // currentRoom이 null이면 REST API로 방 정보 조회 (join 직후 rooms에 없는 경우)
+  useEffect(() => {
+    if (!currentRoom && roomId) {
+      getChatRoom(roomId)
+        .then((room) => {
+          addRoom(room);
+          setFallbackRoom(room);
+        })
+        .catch((err) => console.error('Failed to fetch room:', err));
+    }
+  }, [currentRoom, roomId]);
+
+  const activeRoom = currentRoom || fallbackRoom;
+  const permission = usePermission(activeRoom);
 
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // 무한 스크롤 (과거 메시지 로드)
   const handleLoadMore = async () => {
-    if (isLoadingMore || !currentRoom || !hasMore) return;
+    if (isLoadingMore || !activeRoom || !hasMore) return;
 
     setIsLoadingMore(true);
     try {
@@ -108,7 +127,7 @@ export default function ChatRoomScreen() {
           showTime={showTime}
           canReact={permission.canReact}
           senderRole={
-            currentRoom?.participants?.find((p) => p.userId === item.senderId)?.ownerType || 'MEMBER'
+            activeRoom?.participants?.find((p) => p.userId === item.senderId)?.ownerType || 'MEMBER'
           }
         />
       </View>
@@ -117,22 +136,22 @@ export default function ChatRoomScreen() {
 
   // 헤더 (공지사항)
   const ListHeaderComponent = useMemo(() => {
-    if (!currentRoom?.notice) return null;
+    if (!activeRoom?.notice) return null;
 
     return (
       <View style={styles.noticeContainer}>
         <Text style={styles.noticeIcon}>📌</Text>
-        <Text style={styles.noticeText}>{currentRoom.notice}</Text>
+        <Text style={styles.noticeText}>{activeRoom.notice}</Text>
       </View>
     );
-  }, [currentRoom?.notice]);
+  }, [activeRoom?.notice]);
 
   // 푸터 (타이핑 인디케이터)
   const ListFooterComponent = useMemo(() => {
     return <TypingIndicator userNames={currentTypingUsers} />;
   }, [currentTypingUsers]);
 
-  if (!currentRoom) {
+  if (!activeRoom) {
     return (
       <View style={styles.container}>
         <Text>채팅방을 불러오는 중...</Text>
@@ -144,7 +163,7 @@ export default function ChatRoomScreen() {
     <>
       <Stack.Screen
         options={{
-          title: currentRoom.name,
+          title: activeRoom.name,
           headerBackTitle: '뒤로',
         }}
       />
@@ -172,7 +191,7 @@ export default function ChatRoomScreen() {
         <ChatInput
           roomId={roomId!}
           canSendMessage={permission.canSendMessage}
-          roomType={currentRoom.type}
+          roomType={activeRoom.type}
         />
       </KeyboardAvoidingView>
     </>

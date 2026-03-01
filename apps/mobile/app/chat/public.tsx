@@ -38,10 +38,16 @@ export default function PublicChatRoomsScreen() {
         Alert.alert('입장 요청 완료', '관리자 승인 후 입장이 가능합니다.');
         loadPublicRoomsData();
       } else {
+        loadPublicRoomsData();
         router.push(`/chat/${roomId}`);
       }
     } catch (error: any) {
-      Alert.alert('오류', error.message || '채팅방 참여에 실패했습니다.');
+      if (error.response?.status === 403) {
+        Alert.alert('구독 필요', '이 채팅방은 구독이 필요합니다.');
+      } else {
+        const msg = error.response?.data?.message || error.message || '채팅방 참여에 실패했습니다.';
+        Alert.alert('오류', msg);
+      }
     } finally {
       setJoining(false);
     }

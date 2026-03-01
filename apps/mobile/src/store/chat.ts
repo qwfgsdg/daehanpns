@@ -54,9 +54,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setRooms: (rooms) => set({ rooms }),
 
   addRoom: (room) =>
-    set((state) => ({
-      rooms: [room, ...state.rooms],
-    })),
+    set((state) => {
+      // 중복 체크
+      if (state.rooms.some((r) => r.id === room.id)) {
+        return state;
+      }
+      return { rooms: [room, ...state.rooms] };
+    }),
 
   updateRoom: (roomId, updates) =>
     set((state) => ({
@@ -86,7 +90,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return {
         messages: {
           ...state.messages,
-          [roomId]: [...existing, message],
+          [roomId]: [message, ...existing],
         },
       };
     }),
@@ -99,7 +103,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return {
         messages: {
           ...state.messages,
-          [roomId]: [...newMessages, ...existing],
+          [roomId]: [...existing, ...newMessages],
         },
       };
     }),
