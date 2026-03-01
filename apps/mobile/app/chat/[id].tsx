@@ -2,8 +2,8 @@
  * 채팅방 화면 (핵심!)
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { View, StyleSheet, KeyboardAvoidingView, Platform, Alert, TouchableOpacity, FlatList } from 'react-native';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { View, StyleSheet, KeyboardAvoidingView, Platform, Alert, TouchableOpacity, FlatList, TextInput, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import ImageViewing from 'react-native-image-viewing';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -14,7 +14,7 @@ import {
   SystemMessage,
 } from '@/components/chat';
 import { useChat, usePermission, useAuth } from '@/hooks';
-import { getChatRoom } from '@/lib/api';
+import { getChatRoom, getChatMessages } from '@/lib/api';
 import { useChatStore } from '@/store';
 import { formatDateDivider, isSameDay, isSameMinute } from '@/lib/utils';
 import { COLORS } from '@/constants';
@@ -49,6 +49,12 @@ export default function ChatRoomScreen() {
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
+  // 메시지 검색
+  const [isSearchMode, setIsSearchMode] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
   // 이미지 URL 판별
   const isImageUrl = (url: string): boolean => {
     try {
@@ -71,6 +77,27 @@ export default function ChatRoomScreen() {
     const idx = imageUrls.findIndex(img => img.uri === imageUrl);
     setSelectedImageIndex(idx >= 0 ? idx : 0);
     setImageViewerVisible(true);
+  };
+
+  // 메시지 검색 실행
+  const handleSearch = useCallback(async () => {
+    const q = searchQuery.trim();
+    if (!q || !roomId) return;
+    setIsSearching(true);
+    try {
+      const results = await getChatMessages(roomId, 0, 50, q);
+      setSearchResults(results);
+    } catch (err) {
+      console.error('Search failed:', err);
+    } finally {
+      setIsSearching(false);
+    }
+  }, [searchQuery, roomId]);
+
+  const closeSearch = () => {
+    setIsSearchMode(false);
+    setSearchQuery('');
+    setSearchResults([]);
   };
 
   // 나가기 버튼 핸들러
@@ -212,37 +239,91 @@ export default function ChatRoomScreen() {
           title: activeRoom.name,
           headerBackTitle: '뒤로',
           headerRight: () => (
-            <TouchableOpacity onPress={onLeavePress} style={{ marginRight: 8 }}>
-              <MaterialCommunityIcons name="logout" size={24} color={COLORS.textSecondary} />
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <TouchableOpacity onPress={() => setIsSearchMode(!isSearchMode)} style={{ marginRight: 4 }}>
+                <MaterialCommunityIcons name="magnify" size={24} color={isSearchMode ? COLORS.primary : COLORS.textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={onLeavePress} style={{ marginRight: 8 }}>
+                <MaterialCommunityIcons name="logout" size={24} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            </View>
           ),
         }}
       />
 
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        {/* 메시지 리스트 */}
-        <FlatList
-          data={currentMessages}
-          renderItem={renderItem}
-          inverted
-          keyExtractor={(item) => item.id}
-          onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.5}
-          ListHeaderComponent={ListFooterComponent}
-          ListFooterComponent={ListHeaderComponent}
-          contentContainerStyle={styles.listContent}
-        />
+        {/* 검색바 */}
+        {isSearchMode && (
+          <View style={styles.searchBar}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="메시지 검색..."
+              placeholderTextColor={COLORS.textSecondary}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onSubmitEditing={handleSearch}
+              returnKeyType="search"
+              autoFocus
+              autoCorrect={false}
+            />
+            {isSearching ? (
+              <ActivityIndicator size="small" color={COLORS.primary} />
+            ) : (
+              <TouchableOpacity onPress={handleSearch}>
+                <MaterialCommunityIcons name="magnify" size={22} color={COLORS.primary} />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity onPress={closeSearch}>
+              <MaterialCommunityIcons name="close" size={22} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* 검색 결과 또는 메시지 리스트 */}
+        {isSearchMode && searchResults.length > 0 ? (
+          <FlatList
+            data={searchResults}
+            renderItem={renderItem}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContent}
+            ListHeaderComponent={
+              <View style={styles.searchResultHeader}>
+                <Text style={styles.searchResultText}>
+                  검색 결과 {searchResults.length}건
+                </Text>
+              </View>
+            }
+          />
+        ) : isSearchMode && searchQuery.trim() && !isSearching && searchResults.length === 0 ? (
+          <View style={styles.searchEmpty}>
+            <Text style={styles.searchEmptyText}>검색 결과가 없습니다</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={currentMessages}
+            renderItem={renderItem}
+            inverted
+            keyExtractor={(item) => item.id}
+            onEndReached={handleLoadMore}
+            onEndReachedThreshold={0.5}
+            ListHeaderComponent={ListFooterComponent}
+            ListFooterComponent={ListHeaderComponent}
+            contentContainerStyle={styles.listContent}
+          />
+        )}
 
         {/* 입력창 */}
-        <ChatInput
-          roomId={roomId!}
-          canSendMessage={permission.canSendMessage}
-          roomType={activeRoom.type}
-        />
+        {!isSearchMode && (
+          <ChatInput
+            roomId={roomId!}
+            canSendMessage={permission.canSendMessage}
+            roomType={activeRoom.type}
+          />
+        )}
       </KeyboardAvoidingView>
 
       <ImageViewing
@@ -293,5 +374,43 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textPrimary,
     lineHeight: 20,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    gap: SPACING.sm,
+  },
+  searchInput: {
+    flex: 1,
+    backgroundColor: COLORS.gray100,
+    borderRadius: 8,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    fontSize: 14,
+    color: COLORS.textPrimary,
+  },
+  searchResultHeader: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    backgroundColor: COLORS.gray50,
+  },
+  searchResultText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  searchEmpty: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.xl,
+  },
+  searchEmptyText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
   },
 });

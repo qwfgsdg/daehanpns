@@ -195,6 +195,7 @@ export class ChatsService {
       id: room.id,
       type: room.type,
       category: room.category,
+      joinType: (room as any).joinType,
       name: room.name,
       description: room.description,
       image: room.image,
@@ -293,6 +294,7 @@ export class ChatsService {
       description?: string;
       image?: string;
       maxParticipants?: number;
+      joinType?: JoinType;
     },
     adminId: string,
   ): Promise<ChatRoom> {

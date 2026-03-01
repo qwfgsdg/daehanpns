@@ -36,11 +36,12 @@ export const getChatRoom = async (roomId: string): Promise<ChatRoom> => {
 export const getChatMessages = async (
   roomId: string,
   offset = 0,
-  limit = 50
+  limit = 50,
+  search?: string
 ): Promise<ChatMessage[]> => {
-  const response = await apiClient.get(`/chat/rooms/${roomId}/messages`, {
-    params: { skip: offset, take: limit },
-  });
+  const params: any = { skip: offset, take: limit };
+  if (search) params.search = search;
+  const response = await apiClient.get(`/chat/rooms/${roomId}/messages`, { params });
   return response.data?.items || response.data || [];
 };
 

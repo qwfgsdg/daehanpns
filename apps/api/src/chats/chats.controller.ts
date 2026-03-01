@@ -104,6 +104,7 @@ export class ChatsController {
       description?: string;
       image?: string;
       maxParticipants?: number;
+      joinType?: JoinType;
     },
     @Req() req: any,
   ) {

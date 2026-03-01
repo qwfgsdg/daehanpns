@@ -571,6 +571,7 @@ export class ApiClient {
     description?: string;
     image?: string;
     maxParticipants?: number;
+    joinType?: 'FREE' | 'APPROVAL';
   }) {
     return this.request<any>(`/chats/${id}`, {
       method: 'PUT',

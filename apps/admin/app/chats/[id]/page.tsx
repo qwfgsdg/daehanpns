@@ -55,6 +55,7 @@ export default function ChatDetailPage() {
     description: '',
     image: '',
     maxParticipants: '',
+    joinType: 'FREE' as 'FREE' | 'APPROVAL',
   });
 
   // 무한 스크롤 ref
@@ -99,6 +100,7 @@ export default function ChatDetailPage() {
         description: data.description || '',
         image: data.image || '',
         maxParticipants: data.maxParticipants?.toString() || '',
+        joinType: data.joinType || 'FREE',
       });
     } catch (error) {
       console.error('Failed to load chat:', error);
@@ -334,6 +336,7 @@ export default function ChatDetailPage() {
         description: editForm.description || undefined,
         image: editForm.image || undefined,
         maxParticipants: editForm.maxParticipants ? parseInt(editForm.maxParticipants) : undefined,
+        joinType: editForm.joinType,
       });
       alert('채팅방 정보가 수정되었습니다.');
       setShowEditModal(false);
@@ -1062,6 +1065,19 @@ export default function ChatDetailPage() {
                   onChange={(e) => setEditForm({ ...editForm, maxParticipants: e.target.value })}
                   placeholder="무제한"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  입장 방식
+                </label>
+                <select
+                  value={editForm.joinType}
+                  onChange={(e) => setEditForm({ ...editForm, joinType: e.target.value as 'FREE' | 'APPROVAL' })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                >
+                  <option value="FREE">자유 입장</option>
+                  <option value="APPROVAL">승인 필요</option>
+                </select>
               </div>
               <div className="flex justify-end gap-2 mt-6">
                 <Button
