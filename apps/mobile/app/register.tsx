@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { makeRedirectUri } from 'expo-auth-session';
@@ -72,6 +73,42 @@ export default function RegisterScreen() {
   const [birthDate, setBirthDate] = useState('');
 
   const [isLoading, setIsLoading] = useState(false);
+
+  // 인라인 에러 상태
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const setFieldError = (field: string, message: string) =>
+    setFieldErrors(prev => ({ ...prev, [field]: message }));
+  const clearFieldError = (field: string) =>
+    setFieldErrors(prev => { const n = { ...prev }; delete n[field]; return n; });
+  const clearAllFieldErrors = () => setFieldErrors({});
+
+  // 생년월일 DatePicker
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [tempYear, setTempYear] = useState(1990);
+  const [tempMonth, setTempMonth] = useState(1);
+  const [tempDay, setTempDay] = useState(1);
+
+  const openDatePicker = () => {
+    if (birthDate) {
+      const parts = birthDate.split('-');
+      setTempYear(parseInt(parts[0]) || 1990);
+      setTempMonth(parseInt(parts[1]) || 1);
+      setTempDay(parseInt(parts[2]) || 1);
+    }
+    setShowDatePicker(true);
+  };
+
+  const confirmDatePicker = () => {
+    const m = String(tempMonth).padStart(2, '0');
+    const d = String(tempDay).padStart(2, '0');
+    setBirthDate(`${tempYear}-${m}-${d}`);
+    clearFieldError('birthDate');
+    setShowDatePicker(false);
+  };
+
+  const getDaysInMonth = (year: number, month: number) => {
+    return new Date(year, month, 0).getDate();
+  };
 
   // 소셜 로그인 파라미터 처리 (login.tsx에서 넘어온 경우)
   useEffect(() => {
@@ -314,14 +351,44 @@ export default function RegisterScreen() {
       Alert.alert('오류', '담당자를 선택해주세요.');
       return;
     }
+    clearAllFieldErrors();
     setStep(2);
   };
 
   // === Step 2: 회원정보 입력 ===
 
+  // 인라인 에러 렌더링 헬퍼
+  const renderFieldError = (field: string) => {
+    if (!fieldErrors[field]) return null;
+    return <Text style={styles.fieldError}>{fieldErrors[field]}</Text>;
+  };
+
+  const renderPasswordStrength = () => {
+    if (!password) return null;
+    const len = password.length;
+    let color = '#EF4444';
+    let text = `${len}자 (8자 이상 필요)`;
+    if (len >= 12) {
+      color = '#10B981';
+      text = `${len}자 (안전)`;
+    } else if (len >= 8) {
+      color = '#F59E0B';
+      text = `${len}자 (사용 가능)`;
+    }
+    return <Text style={[styles.fieldHint, { color }]}>{text}</Text>;
+  };
+
+  const renderPasswordMatch = () => {
+    if (!passwordConfirm) return null;
+    if (password === passwordConfirm) {
+      return <Text style={[styles.fieldHint, { color: '#10B981' }]}>비밀번호가 일치합니다</Text>;
+    }
+    return <Text style={[styles.fieldHint, { color: '#EF4444' }]}>비밀번호가 일치하지 않습니다</Text>;
+  };
+
   const handleCheckLoginId = async () => {
     if (!loginId || loginId.length < 4) {
-      Alert.alert('오류', '아이디는 4자 이상이어야 합니다.');
+      setFieldError('loginId', '아이디는 4자 이상이어야 합니다.');
       return;
     }
     setIsLoading(true);
@@ -330,32 +397,42 @@ export default function RegisterScreen() {
       setIsLoginIdChecked(true);
       setIsLoginIdAvailable(result.available);
       if (result.available) {
-        Alert.alert('확인', '사용 가능한 아이디입니다.');
+        clearFieldError('loginId');
       } else {
-        Alert.alert('오류', result.message);
+        setFieldError('loginId', result.message);
       }
     } catch (err: any) {
-      Alert.alert('오류', getErrorMessage(err));
+      setFieldError('loginId', getErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleRegister = async () => {
+    // 모든 필드 한번에 검증
+    const errors: Record<string, string> = {};
+
     if (!isLoginIdChecked || !isLoginIdAvailable) {
-      Alert.alert('오류', '아이디 중복확인을 해주세요.');
-      return;
+      errors.loginId = '아이디 중복확인을 해주세요.';
     }
-    if (!password || password.length < 6) {
-      Alert.alert('오류', '비밀번호는 6자 이상이어야 합니다.');
-      return;
+    if (!password || password.length < 8) {
+      errors.password = '비밀번호는 8자 이상이어야 합니다.';
     }
     if (password !== passwordConfirm) {
-      Alert.alert('오류', '비밀번호가 일치하지 않습니다.');
-      return;
+      errors.passwordConfirm = '비밀번호가 일치하지 않습니다.';
     }
-    if (!name) {
-      Alert.alert('오류', '이름을 입력해주세요.');
+    if (!name.trim()) {
+      errors.name = '이름을 입력해주세요.';
+    }
+    if (!nickname.trim()) {
+      errors.nickname = '닉네임을 입력해주세요.';
+    }
+    if (!birthDate) {
+      errors.birthDate = '생년월일을 선택해주세요.';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
       return;
     }
 
@@ -371,7 +448,7 @@ export default function RegisterScreen() {
           loginId,
           password,
           name,
-          nickname: nickname || undefined,
+          nickname: nickname.trim(),
           gender: gender || undefined,
           birthDate: birthDate || undefined,
           email: socialData.email,
@@ -392,7 +469,7 @@ export default function RegisterScreen() {
           phone,
           password,
           name,
-          nickname: nickname || undefined,
+          nickname: nickname.trim(),
           gender: gender || undefined,
           birthDate: birthDate || undefined,
         };
@@ -689,12 +766,13 @@ export default function RegisterScreen() {
             <Text style={styles.label}>아이디 *</Text>
             <View style={styles.row}>
               <TextInput
-                style={[styles.input, styles.flexInput]}
+                style={[styles.input, styles.flexInput, fieldErrors.loginId && styles.inputError]}
                 value={loginId}
                 onChangeText={(text) => {
                   setLoginId(text);
                   setIsLoginIdChecked(false);
                   setIsLoginIdAvailable(false);
+                  clearFieldError('loginId');
                 }}
                 placeholder="4자 이상 입력"
                 autoCapitalize="none"
@@ -709,52 +787,71 @@ export default function RegisterScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
+            {renderFieldError('loginId')}
           </View>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>비밀번호 *</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, fieldErrors.password && styles.inputError]}
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(text) => {
+                setPassword(text);
+                clearFieldError('password');
+              }}
               secureTextEntry
-              placeholder="6자 이상"
+              placeholder="8자 이상"
             />
+            {renderPasswordStrength()}
+            {renderFieldError('password')}
           </View>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>비밀번호 확인 *</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, fieldErrors.passwordConfirm && styles.inputError]}
               value={passwordConfirm}
-              onChangeText={setPasswordConfirm}
+              onChangeText={(text) => {
+                setPasswordConfirm(text);
+                clearFieldError('passwordConfirm');
+              }}
               secureTextEntry
               placeholder="비밀번호 재입력"
             />
+            {renderPasswordMatch()}
+            {renderFieldError('passwordConfirm')}
           </View>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>이름 *</Text>
             <TextInput
-              style={[styles.input, (signupMethod === 'google' || signupMethod === 'kakao') && styles.inputDisabled]}
+              style={[styles.input, fieldErrors.name && styles.inputError, (signupMethod === 'google' || signupMethod === 'kakao') && styles.inputDisabled]}
               value={name}
-              onChangeText={setName}
-              placeholder="홍길동"
+              onChangeText={(text) => {
+                setName(text);
+                clearFieldError('name');
+              }}
+              placeholder="실명을 입력하세요"
               editable={signupMethod === 'phone'}
             />
             {(signupMethod === 'google' || signupMethod === 'kakao') && (
               <Text style={styles.helperText}>SNS에서 가져온 정보입니다</Text>
             )}
+            {renderFieldError('name')}
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>닉네임</Text>
+            <Text style={styles.label}>닉네임 *</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, fieldErrors.nickname && styles.inputError]}
               value={nickname}
-              onChangeText={setNickname}
-              placeholder="선택사항"
+              onChangeText={(text) => {
+                setNickname(text);
+                clearFieldError('nickname');
+              }}
+              placeholder="닉네임을 입력하세요"
             />
+            {renderFieldError('nickname')}
           </View>
 
           <View style={styles.inputGroup}>
@@ -780,14 +877,66 @@ export default function RegisterScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>생년월일</Text>
-            <TextInput
-              style={styles.input}
-              value={birthDate}
-              onChangeText={setBirthDate}
-              placeholder="YYYY-MM-DD (선택사항)"
-            />
+            <Text style={styles.label}>생년월일 *</Text>
+            <TouchableOpacity style={[styles.input, fieldErrors.birthDate && styles.inputError]} onPress={openDatePicker} activeOpacity={0.7}>
+              <Text style={birthDate ? styles.dateText : styles.datePlaceholder}>
+                {birthDate || '생년월일을 선택하세요'}
+              </Text>
+            </TouchableOpacity>
+            {renderFieldError('birthDate')}
           </View>
+
+          {/* 생년월일 선택 모달 */}
+          <Modal visible={showDatePicker} transparent animationType="fade">
+            <View style={styles.modalOverlay}>
+              <View style={styles.datePickerModal}>
+                <Text style={styles.datePickerTitle}>생년월일 선택</Text>
+                <View style={styles.datePickerRow}>
+                  {/* 년 */}
+                  <View style={styles.datePickerCol}>
+                    <TouchableOpacity style={styles.dateArrow} onPress={() => setTempYear(Math.min(tempYear + 1, new Date().getFullYear()))}>
+                      <Text style={styles.dateArrowText}>▲</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.dateValue}>{tempYear}</Text>
+                    <TouchableOpacity style={styles.dateArrow} onPress={() => setTempYear(Math.max(tempYear - 1, 1920))}>
+                      <Text style={styles.dateArrowText}>▼</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.dateLabel}>년</Text>
+                  </View>
+                  {/* 월 */}
+                  <View style={styles.datePickerCol}>
+                    <TouchableOpacity style={styles.dateArrow} onPress={() => setTempMonth(tempMonth >= 12 ? 1 : tempMonth + 1)}>
+                      <Text style={styles.dateArrowText}>▲</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.dateValue}>{String(tempMonth).padStart(2, '0')}</Text>
+                    <TouchableOpacity style={styles.dateArrow} onPress={() => setTempMonth(tempMonth <= 1 ? 12 : tempMonth - 1)}>
+                      <Text style={styles.dateArrowText}>▼</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.dateLabel}>월</Text>
+                  </View>
+                  {/* 일 */}
+                  <View style={styles.datePickerCol}>
+                    <TouchableOpacity style={styles.dateArrow} onPress={() => { const max = getDaysInMonth(tempYear, tempMonth); setTempDay(tempDay >= max ? 1 : tempDay + 1); }}>
+                      <Text style={styles.dateArrowText}>▲</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.dateValue}>{String(tempDay).padStart(2, '0')}</Text>
+                    <TouchableOpacity style={styles.dateArrow} onPress={() => { const max = getDaysInMonth(tempYear, tempMonth); setTempDay(tempDay <= 1 ? max : tempDay - 1); }}>
+                      <Text style={styles.dateArrowText}>▼</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.dateLabel}>일</Text>
+                  </View>
+                </View>
+                <View style={styles.datePickerButtons}>
+                  <TouchableOpacity style={styles.datePickerCancel} onPress={() => setShowDatePicker(false)}>
+                    <Text style={styles.datePickerCancelText}>취소</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.datePickerConfirm} onPress={confirmDatePicker}>
+                    <Text style={styles.datePickerConfirmText}>확인</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
 
           <TouchableOpacity
             style={[styles.submitButton, isLoading && styles.buttonDisabled]}
@@ -801,7 +950,7 @@ export default function RegisterScreen() {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.backButton} onPress={() => setStep(1)}>
+          <TouchableOpacity style={styles.backButton} onPress={() => { clearAllFieldErrors(); setStep(1); }}>
             <Text style={styles.backButtonText}>이전</Text>
           </TouchableOpacity>
         </View>
@@ -957,7 +1106,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   label: {
     fontSize: 14,
@@ -981,6 +1130,20 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 12,
     color: '#9ca3af',
+  },
+  inputError: {
+    borderColor: '#EF4444',
+    borderWidth: 1.5,
+  },
+  fieldError: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#EF4444',
+    fontWeight: '500',
+  },
+  fieldHint: {
+    marginTop: 4,
+    fontSize: 12,
   },
   row: {
     flexDirection: 'row',
@@ -1102,5 +1265,89 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
     fontWeight: '500',
+  },
+  dateText: {
+    fontSize: 16,
+    color: '#111827',
+  },
+  datePlaceholder: {
+    fontSize: 16,
+    color: '#9ca3af',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  datePickerModal: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    width: 320,
+  },
+  datePickerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  datePickerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+  },
+  datePickerCol: {
+    alignItems: 'center',
+    width: 80,
+  },
+  dateArrow: {
+    padding: 12,
+  },
+  dateArrowText: {
+    fontSize: 20,
+    color: '#2563eb',
+  },
+  dateValue: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#111827',
+    marginVertical: 4,
+  },
+  dateLabel: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 4,
+  },
+  datePickerButtons: {
+    flexDirection: 'row',
+    marginTop: 24,
+    gap: 12,
+  },
+  datePickerCancel: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    alignItems: 'center',
+  },
+  datePickerCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  datePickerConfirm: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 8,
+    backgroundColor: '#2563eb',
+    alignItems: 'center',
+  },
+  datePickerConfirmText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
   },
 });

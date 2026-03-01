@@ -214,6 +214,11 @@ export class AuthService {
       throw new BadRequestException('아이디는 4자 이상이어야 합니다.');
     }
 
+    // 비밀번호 검증
+    if (!data.password || data.password.length < 8) {
+      throw new BadRequestException('비밀번호는 8자 이상이어야 합니다.');
+    }
+
     // loginId 중복 확인
     const existingByLoginId = await this.prisma.user.findFirst({
       where: { loginId: data.loginId, deletedAt: null },
@@ -263,27 +268,41 @@ export class AuthService {
     const password = data.password || crypto.randomBytes(16).toString('hex');
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = await this.prisma.user.create({
-      data: {
-        loginId: data.loginId,
-        phone: data.phone || undefined,
-        password: hashedPassword,
-        name: data.name,
-        nickname: data.nickname,
-        gender: data.gender,
-        birthDate: (() => {
-          if (!data.birthDate) return undefined;
-          const dateStr = String(data.birthDate).trim();
-          if (dateStr === '') return undefined;
-          const date = new Date(dateStr);
-          return isNaN(date.getTime()) ? undefined : date;
-        })(),
-        affiliateCode: affiliateCode!,
-        managerId: assignedManagerId,
-        referralSource,
-        provider: AuthProvider.LOCAL,
-      },
-    });
+    // 닉네임 빈 문자열→undefined 정규화
+    const normalizedNickname = data.nickname?.trim() || undefined;
+
+    let user;
+    try {
+      user = await this.prisma.user.create({
+        data: {
+          loginId: data.loginId,
+          phone: data.phone || undefined,
+          password: hashedPassword,
+          name: data.name,
+          nickname: normalizedNickname,
+          gender: data.gender,
+          birthDate: (() => {
+            if (!data.birthDate) return undefined;
+            const dateStr = String(data.birthDate).trim();
+            if (dateStr === '') return undefined;
+            const date = new Date(dateStr);
+            return isNaN(date.getTime()) ? undefined : date;
+          })(),
+          affiliateCode: affiliateCode!,
+          managerId: assignedManagerId,
+          referralSource,
+          provider: AuthProvider.LOCAL,
+        },
+      });
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        const field = error.meta?.target?.[0] || 'unknown';
+        if (field === 'nickname') throw new ConflictException('이미 사용 중인 닉네임입니다.');
+        if (field === 'phone') throw new ConflictException('이미 가입된 전화번호입니다.');
+        throw new ConflictException('이미 등록된 정보입니다.');
+      }
+      throw error;
+    }
 
     const accessToken = this.jwtService.sign({
       sub: user.id,
@@ -513,8 +532,8 @@ export class AuthService {
 
     // 기존 소셜 유저(password=null)가 비밀번호도 함께 설정
     if (data.password) {
-      if (data.password.length < 6) {
-        throw new BadRequestException('비밀번호는 6자 이상이어야 합니다.');
+      if (data.password.length < 8) {
+        throw new BadRequestException('비밀번호는 8자 이상이어야 합니다.');
       }
       updateData.password = await bcrypt.hash(data.password, 10);
     }
@@ -663,8 +682,8 @@ export class AuthService {
     if (!data.loginId || data.loginId.length < 4) {
       throw new BadRequestException('아이디는 4자 이상이어야 합니다.');
     }
-    if (!data.password || data.password.length < 6) {
-      throw new BadRequestException('비밀번호는 6자 이상이어야 합니다.');
+    if (!data.password || data.password.length < 8) {
+      throw new BadRequestException('비밀번호는 8자 이상이어야 합니다.');
     }
 
     // loginId 중복 확인
@@ -726,31 +745,45 @@ export class AuthService {
     // 비밀번호 해시
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
+    // 닉네임 빈 문자열→undefined 정규화
+    const normalizedNickname = data.nickname?.trim() || undefined;
+
     // 회원 생성
-    const user = await this.prisma.user.create({
-      data: {
-        provider: data.provider,
-        providerId: data.providerId,
-        loginId: data.loginId,
-        password: hashedPassword,
-        phone: data.phone || undefined,
-        name: data.name,
-        nickname: data.nickname,
-        gender: data.gender,
-        birthDate: (() => {
-          if (!data.birthDate) return undefined;
-          const dateStr = String(data.birthDate).trim();
-          if (dateStr === '') return undefined;
-          const date = new Date(dateStr);
-          return isNaN(date.getTime()) ? undefined : date;
-        })(),
-        affiliateCode: affiliateCode!,
-        email: data.email,
-        profileImage: data.profileImage,
-        managerId: assignedManagerId,
-        referralSource,
-      },
-    });
+    let user;
+    try {
+      user = await this.prisma.user.create({
+        data: {
+          provider: data.provider,
+          providerId: data.providerId,
+          loginId: data.loginId,
+          password: hashedPassword,
+          phone: data.phone || undefined,
+          name: data.name,
+          nickname: normalizedNickname,
+          gender: data.gender,
+          birthDate: (() => {
+            if (!data.birthDate) return undefined;
+            const dateStr = String(data.birthDate).trim();
+            if (dateStr === '') return undefined;
+            const date = new Date(dateStr);
+            return isNaN(date.getTime()) ? undefined : date;
+          })(),
+          affiliateCode: affiliateCode!,
+          email: data.email,
+          profileImage: data.profileImage,
+          managerId: assignedManagerId,
+          referralSource,
+        },
+      });
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        const field = error.meta?.target?.[0] || 'unknown';
+        if (field === 'nickname') throw new ConflictException('이미 사용 중인 닉네임입니다.');
+        if (field === 'phone') throw new ConflictException('이미 가입된 전화번호입니다.');
+        throw new ConflictException('이미 등록된 정보입니다.');
+      }
+      throw error;
+    }
 
     const accessToken = this.jwtService.sign({
       sub: user.id,

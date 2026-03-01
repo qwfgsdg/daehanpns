@@ -73,8 +73,8 @@ export default function SetupLoginIdScreen() {
     }
 
     if (needsPassword) {
-      if (!password || password.length < 6) {
-        Alert.alert('오류', '비밀번호는 6자 이상이어야 합니다.');
+      if (!password || password.length < 8) {
+        Alert.alert('오류', '비밀번호는 8자 이상이어야 합니다.');
         return;
       }
       if (password !== passwordConfirm) {
@@ -149,7 +149,7 @@ export default function SetupLoginIdScreen() {
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
-                placeholder="6자 이상"
+                placeholder="8자 이상"
               />
             </View>
 
