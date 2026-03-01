@@ -27,6 +27,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "softwareKeyboardLayoutMode": "adjustResize",
       "package": "com.daehanpns.mobile",
       "permissions": [
         "CAMERA",
