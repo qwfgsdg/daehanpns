@@ -11,6 +11,7 @@ import {
   StyleSheet,
   Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IconButton } from 'react-native-paper';
 import { sendMessage, startTyping, stopTyping } from '@/lib/socket';
 import { COLORS, TYPING_TIMEOUT } from '@/constants';
@@ -30,6 +31,7 @@ export const ChatInput: React.FC<Props> = ({
   roomType,
   onAttachPress,
 }) => {
+  const insets = useSafeAreaInsets();
   const [message, setMessage] = useState('');
   const typingTimeout = useRef<NodeJS.Timeout | null>(null);
 
@@ -63,10 +65,12 @@ export const ChatInput: React.FC<Props> = ({
     }
   };
 
+  const bottomPadding = Math.max(insets.bottom, SPACING.sm);
+
   // ONE_TO_N에서 일반 회원이면 비활성화
   if (!canSendMessage) {
     return (
-      <View style={[styles.container, styles.disabled]}>
+      <View style={[styles.container, styles.disabled, { paddingBottom: bottomPadding }]}>
         <Text style={styles.disabledText}>
           {roomType === 'ONE_TO_N' ? '읽기 전용 채팅방입니다' : '메시지를 보낼 수 없습니다'}
         </Text>
@@ -75,7 +79,7 @@ export const ChatInput: React.FC<Props> = ({
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingBottom: bottomPadding }]}>
       {/* 첨부 버튼 */}
       <IconButton
         icon="attachment"

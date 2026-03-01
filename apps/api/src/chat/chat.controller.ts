@@ -109,7 +109,7 @@ export class ChatController {
    */
   @Put('rooms/:id')
   @UseGuards(PermissionGuard)
-  @RequirePermission('chat.manage')
+  @RequirePermission('chats.manage')
   async updateRoom(@Param('id') id: string, @Body() data: any) {
     return this.chatService.updateRoom(id, data);
   }
@@ -119,7 +119,7 @@ export class ChatController {
    */
   @Delete('rooms/:id')
   @UseGuards(PermissionGuard)
-  @RequirePermission('chat.manage')
+  @RequirePermission('chats.manage')
   async deleteRoom(@Param('id') id: string) {
     await this.chatService.deleteRoom(id);
     return { success: true };
@@ -138,7 +138,7 @@ export class ChatController {
    */
   @Post('rooms/:roomId/approve/:userId')
   @UseGuards(PermissionGuard)
-  @RequirePermission('chat.manage')
+  @RequirePermission('chats.manage')
   async approveJoin(
     @Param('roomId') roomId: string,
     @Param('userId') userId: string,
@@ -152,7 +152,7 @@ export class ChatController {
    */
   @Post('rooms/:roomId/reject/:userId')
   @UseGuards(PermissionGuard)
-  @RequirePermission('chat.manage')
+  @RequirePermission('chats.manage')
   async rejectJoin(
     @Param('roomId') roomId: string,
     @Param('userId') userId: string,
@@ -166,7 +166,7 @@ export class ChatController {
    */
   @Get('rooms/:id/pending')
   @UseGuards(PermissionGuard)
-  @RequirePermission('chat.manage')
+  @RequirePermission('chats.manage')
   async getPendingParticipants(@Param('id') id: string) {
     return this.chatService.getPendingParticipants(id);
   }
@@ -282,7 +282,7 @@ export class ChatController {
    */
   @Post('broadcast')
   @UseGuards(PermissionGuard)
-  @RequirePermission('chat.manage')
+  @RequirePermission('chats.manage')
   async broadcastMessage(
     @Body() data: { content: string; fileUrl?: string },
     @Req() req: any,

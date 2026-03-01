@@ -110,46 +110,44 @@ export default function PublicChatRoomsScreen() {
 
   return (
     <View style={styles.container}>
-      {publicRooms.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>📢</Text>
-          <Text style={styles.emptyText}>공개 채팅방이 없습니다</Text>
-          <Text style={styles.emptySubtext}>
-            관리자가 공개 채팅방을 생성하면 여기에 표시됩니다
-          </Text>
-        </View>
-      ) : (
-        <>
-          <View style={styles.searchContainer}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="채팅방 검색..."
-              placeholderTextColor={COLORS.textSecondary}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              autoCorrect={false}
-            />
-          </View>
-          <FlatList
-            data={filteredRooms}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <ChatRoomCard
-                room={item}
-                onPress={() => handleRoomPress(item)}
-              />
-            )}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-            }
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptySubtext}>검색 결과가 없습니다</Text>
-              </View>
-            }
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="채팅방 검색..."
+          placeholderTextColor={COLORS.textSecondary}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          autoCorrect={false}
+        />
+      </View>
+      <FlatList
+        data={filteredRooms}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <ChatRoomCard
+            room={item}
+            onPress={() => handleRoomPress(item)}
           />
-        </>
-      )}
+        )}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            {publicRooms.length === 0 ? (
+              <>
+                <Text style={styles.emptyIcon}>📢</Text>
+                <Text style={styles.emptyText}>공개 채팅방이 없습니다</Text>
+                <Text style={styles.emptySubtext}>
+                  관리자가 공개 채팅방을 생성하면 여기에 표시됩니다
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.emptySubtext}>검색 결과가 없습니다</Text>
+            )}
+          </View>
+        }
+      />
     </View>
   );
 }

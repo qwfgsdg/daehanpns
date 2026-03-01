@@ -41,46 +41,44 @@ export default function ChatListScreen() {
 
   return (
     <View style={styles.container}>
-      {rooms.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>💬</Text>
-          <Text style={styles.emptyText}>참여 중인 채팅방이 없습니다</Text>
-          <Text style={styles.emptySubtext}>
-            공개 채팅방에 참여하거나 초대를 기다려주세요
-          </Text>
-        </View>
-      ) : (
-        <>
-          <View style={styles.searchContainer}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="채팅방 검색..."
-              placeholderTextColor={COLORS.textSecondary}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              autoCorrect={false}
-            />
-          </View>
-          <FlatList
-            data={filteredRooms}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <ChatRoomCard
-                room={item}
-                onPress={() => handleRoomPress(item.id)}
-              />
-            )}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-            }
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptySubtext}>검색 결과가 없습니다</Text>
-              </View>
-            }
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="채팅방 검색..."
+          placeholderTextColor={COLORS.textSecondary}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          autoCorrect={false}
+        />
+      </View>
+      <FlatList
+        data={filteredRooms}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <ChatRoomCard
+            room={item}
+            onPress={() => handleRoomPress(item.id)}
           />
-        </>
-      )}
+        )}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            {rooms.length === 0 ? (
+              <>
+                <Text style={styles.emptyIcon}>💬</Text>
+                <Text style={styles.emptyText}>참여 중인 채팅방이 없습니다</Text>
+                <Text style={styles.emptySubtext}>
+                  공개 채팅방에 참여하거나 초대를 기다려주세요
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.emptySubtext}>검색 결과가 없습니다</Text>
+            )}
+          </View>
+        }
+      />
     </View>
   );
 }
